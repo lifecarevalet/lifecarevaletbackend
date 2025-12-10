@@ -1,0 +1,6 @@
+name = "lifecarevalet-worker"
+main = "functions/index.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+# API keys (if any)
