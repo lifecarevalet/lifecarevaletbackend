@@ -1,5 +1,10 @@
+/**
+ * Cloudflare Worker API for LifeCareValet (D1)
+ * ES Module format for D1 binding
+ */
+
 const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "*", // prod: replace * with frontend domain
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
@@ -7,7 +12,10 @@ const CORS_HEADERS = {
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    headers: {
+      "Content-Type": "application/json",
+      ...CORS_HEADERS,
+    },
   });
 }
 
@@ -32,15 +40,15 @@ async function dbQuery(db, sql, params = []) {
   const stmt = db.prepare(sql);
   if (params.length) stmt.bind(...params);
   try {
-    return await stmt.all();
-  } catch {
-    return await db.prepare(sql).bind(...params).run();
+    const result = await stmt.all();
+    return result;
+  } catch (e) {
+    const result = await db.prepare(sql).bind(...params).run();
+    return result;
   }
 }
 
-/* ------------------------
-   API Handlers
------------------------- */
+/* ---------------- API HANDLERS ---------------- */
 
 async function handleOptions() {
   return new Response(null, { headers: CORS_HEADERS });
@@ -53,7 +61,7 @@ async function handleLogin(request, env) {
 
     const db = env.lifecarevalet_db;
     const q = await dbQuery(db, "SELECT id, username, role FROM users WHERE username = ? AND password = ? LIMIT 1", [username, password]);
-    const row = (q?.results?.[0]) || null;
+    const row = q?.results?.[0] || null;
     if (!row) return errorResponse("Invalid credentials", 401);
 
     return jsonResponse({ ok: true, user: { id: row.id, username: row.username, role: row.role } });
@@ -112,7 +120,7 @@ async function handleDriverBalance(request, env, driverId) {
   try {
     const db = env.lifecarevalet_db;
     const q = await dbQuery(db, "SELECT COALESCE(SUM(points),0) AS balance FROM points_log WHERE driver_id = ?", [driverId]);
-    const row = (q?.results?.[0]) || { balance: 0 };
+    const row = q?.results?.[0] || { balance: 0 };
     return jsonResponse({ ok: true, driver_id: driverId, balance: row.balance });
   } catch (err) {
     return errorResponse(err.message || "Balance fetch failed", 500);
@@ -123,37 +131,29 @@ async function handleListDrivers(request, env) {
   try {
     const db = env.lifecarevalet_db;
     const q = await dbQuery(db, "SELECT id, name, phone FROM drivers ORDER BY id DESC");
-    const rows = q?.results || [];
-    return jsonResponse({ ok: true, drivers: rows });
+    return jsonResponse({ ok: true, drivers: q?.results || [] });
   } catch (err) {
     return errorResponse(err.message || "List drivers failed", 500);
   }
 }
 
-/* ------------------------
-   Router / entrypoint
------------------------- */
+/* ---------------- ROUTER ---------------- */
 
-export async function onRequest(context) {
-  const { request, env } = context;
+export async function onRequest({ request, env }) {
   const url = new URL(request.url);
   const pathname = url.pathname.replace(/\/+$/, "");
 
   if (request.method === "OPTIONS") return handleOptions();
 
-  try {
-    if (request.method === "POST" && pathname === "/api/login") return await handleLogin(request, env);
-    if (request.method === "POST" && pathname === "/api/admin/manager") return await handleAddManager(request, env);
-    if (request.method === "POST" && pathname === "/api/admin/driver") return await handleAddDriver(request, env);
-    if (request.method === "POST" && pathname === "/api/admin/points") return await handleAddPoints(request, env);
-    if (request.method === "GET" && /^\/api\/driver\/\d+\/balance$/.test(pathname)) {
-      const id = pathname.split("/")[3];
-      return await handleDriverBalance(request, env, id);
-    }
-    if (request.method === "GET" && pathname === "/api/drivers") return await handleListDrivers(request, env);
-
-    return errorResponse("Not found", 404);
-  } catch (err) {
-    return errorResponse(err.message || "Internal server error", 500);
+  if (request.method === "POST" && pathname === "/api/login") return handleLogin(request, env);
+  if (request.method === "POST" && pathname === "/api/admin/manager") return handleAddManager(request, env);
+  if (request.method === "POST" && pathname === "/api/admin/driver") return handleAddDriver(request, env);
+  if (request.method === "POST" && pathname === "/api/admin/points") return handleAddPoints(request, env);
+  if (request.method === "GET" && /^\/api\/driver\/\d+\/balance$/.test(pathname)) {
+    const id = pathname.split("/")[3];
+    return handleDriverBalance(request, env, id);
   }
+  if (request.method === "GET" && pathname === "/api/drivers") return handleListDrivers(request, env);
+
+  return errorResponse("Not found", 404);
 }
