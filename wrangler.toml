@@ -4,5 +4,5 @@ compatibility_date = "2025-01-01"
 
 [[bindings]]
 type = "d1"
-name = "DB"
+name = "lifecarevalet_db"
 database_name = "lifecarevalet_db"
