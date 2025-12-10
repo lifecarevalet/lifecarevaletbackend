@@ -3,7 +3,11 @@ main = "functions/index.js"
 compatibility_date = "2025-01-01"
 type = "module"
 
+# Optional environment variables
+# [vars]
+# OWNER_KEY = "LifeCareValet_Admin_Key_2025_Secret_987"
+
 [[d1_databases]]
-binding = "lifecarevalet_db"          # env.lifecarevalet_db in code
-database_name = "lifecarevalet_db"    # Same as Cloudflare D1
+binding = "lifecarevalet_db"
+database_name = "lifecarevalet_db"
 database_id = "25bfe850-5e59-435f-880c-48dc90739da7"
