@@ -139,7 +139,7 @@ async function handleListDrivers(request, env) {
 
 /* ---------------- ROUTER ---------------- */
 
-export async function onRequest({ request, env }) {
+async function router(request, env) {
   const url = new URL(request.url);
   const pathname = url.pathname.replace(/\/+$/, "");
 
@@ -157,3 +157,11 @@ export async function onRequest({ request, env }) {
 
   return errorResponse("Not found", 404);
 }
+
+/* ---------------- DEFAULT EXPORT FOR ES MODULE ---------------- */
+
+export default {
+  async fetch(request, env) {
+    return router(request, env);
+  },
+};
