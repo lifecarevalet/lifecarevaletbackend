@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler pages deploy . --branch $CF_PAGES_BRANCH --commit-hash $CF_PAGES_COMMIT_SHA"
+    "deploy": "wrangler pages deploy . --branch $CF_PAGES_BRANCH --commit-hash $CF_PAGES_COMMIT_SHA" // FIX: pages command use hoga
   },
   "dependencies": {}
 }
