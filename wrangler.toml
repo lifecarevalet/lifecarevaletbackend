@@ -1,9 +1,14 @@
 name = "lifecarevalet-worker"
 main = "functions/index.js"
 compatibility_date = "2025-01-01"
-type = "esm"   # ES Module required for D1 binding
+type = "esm"   # 🔥 ES Module required for D1
 
 [[d1_databases]]
 binding = "lifecarevalet_db"
-database_name = "lifecarevalet_db"   # same as Cloudflare D1 dashboard
+database_name = "lifecarevalet_db"   # ✅ same as dashboard
 database_id = "25bfe850-5e59-435f-880c-48dc90739da7"
+
+[vars]
+# OWNER_KEY set via wrangler secret
+# run: wrangler secret put OWNER_KEY
+# Example value: LifeCareValet_Admin_Key_2025_Secret_987
