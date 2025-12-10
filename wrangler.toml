@@ -1,9 +1,9 @@
 name = "lifecarevalet-worker"
 main = "functions/index.js"
 compatibility_date = "2025-01-01"
-type = "module"  # ✅ ES Module worker ke liye zaroori
+type = "module"
 
 [[d1_databases]]
 binding = "lifecarevalet_db"          # env.lifecarevalet_db in code
-database_name = "lifecarevalet_db"    # ✅ same as Cloudflare dashboard
+database_name = "lifecarevalet_db"    # Same as Cloudflare D1
 database_id = "25bfe850-5e59-435f-880c-48dc90739da7"
