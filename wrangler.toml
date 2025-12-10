@@ -2,7 +2,7 @@ name = "lifecarevalet-worker"
 main = "functions/index.js"
 compatibility_date = "2025-01-01"
 
-[[bindings]]
-type = "d1"
-name = "lifecarevalet_db"
+[[d1_databases]]
+binding = "lifecarevalet_db"
 database_name = "lifecarevalet_db"
+database_id = "PASTE-YOUR-DB-ID-HERE"
