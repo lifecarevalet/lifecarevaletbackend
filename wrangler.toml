@@ -1,12 +1,12 @@
 name = "lifecarevalet-worker"
 
-# main line ko delete kar diya gaya hai (ya comment kar diya gaya hai)
+# IMPORTANT FIX 1: Yeh line DELETE kar di gayi hai (ya comment kar di gayi hai).
 # main = "functions/index.js" 
 
 compatibility_date = "2025-01-01"
-type = "module"
+type = "module" # Yeh line 'ES module' format ko confirm karti hai.
 
 [[d1_databases]]
-binding = "DB"  # <--- FIX: Ise "DB" karein.
+binding = "DB"  # <--- CRITICAL FIX 2: Isko "DB" karna hai.
 database_name = "lifecarevalet_db"
 database_id = "25bfe850-5e59-435f-880c-48dc90739da7"
