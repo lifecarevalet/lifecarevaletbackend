@@ -4,8 +4,5 @@ compatibility_date = "2025-01-01"
 
 [[bindings]]
 type = "d1"
-name = "DB"                   # Worker me use hoga
+name = "DB"
 database_name = "lifecarevalet_db"
-
-[vars]
-# API keys (if any)
