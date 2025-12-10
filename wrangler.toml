@@ -2,5 +2,10 @@ name = "lifecarevalet-worker"
 main = "functions/index.js"
 compatibility_date = "2025-01-01"
 
+[[bindings]]
+type = "d1"
+name = "DB"                   # Worker me use hoga
+database_name = "lifecarevalet_db"
+
 [vars]
 # API keys (if any)
