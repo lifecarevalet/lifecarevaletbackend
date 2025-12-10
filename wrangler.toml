@@ -1,4 +1,4 @@
-name = "lifecarevalet-worker"
+name = "lifecarevaletbackend"
 main = "functions/index.js" # Ise rehne do ya hata do
 compatibility_date = "2025-01-01"
 type = "module"
