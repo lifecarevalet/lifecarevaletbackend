@@ -1,10 +1,9 @@
 /**
- * Cloudflare Worker API for LifeCareValet (D1)
- * ES Module format for D1 binding
+ * LifeCareValet Worker API (ES Module) for D1
  */
 
 const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*", // prod: replace * with frontend domain
+  "Access-Control-Allow-Origin": "*", // Prod: replace * with frontend domain
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
@@ -12,10 +11,7 @@ const CORS_HEADERS = {
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: {
-      "Content-Type": "application/json",
-      ...CORS_HEADERS,
-    },
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
 }
 
@@ -42,13 +38,13 @@ async function dbQuery(db, sql, params = []) {
   try {
     const result = await stmt.all();
     return result;
-  } catch (e) {
+  } catch {
     const result = await db.prepare(sql).bind(...params).run();
     return result;
   }
 }
 
-/* ---------------- API HANDLERS ---------------- */
+/* ---------------- API Handlers ---------------- */
 
 async function handleOptions() {
   return new Response(null, { headers: CORS_HEADERS });
@@ -137,7 +133,7 @@ async function handleListDrivers(request, env) {
   }
 }
 
-/* ---------------- ROUTER ---------------- */
+/* ---------------- Router ---------------- */
 
 async function router(request, env) {
   const url = new URL(request.url);
@@ -158,8 +154,7 @@ async function router(request, env) {
   return errorResponse("Not found", 404);
 }
 
-/* ---------------- DEFAULT EXPORT FOR ES MODULE ---------------- */
-
+// ✅ Default export required for ES Module Worker
 export default {
   async fetch(request, env) {
     return router(request, env);
