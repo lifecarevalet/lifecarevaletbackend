@@ -1,10 +1,4 @@
-{
-  "name": "lifecarevalet-worker",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler pages deploy . --branch $CF_PAGES_BRANCH --commit-hash $CF_PAGES_COMMIT_SHA"
-  },
-  "dependencies": {}
-}
+"scripts": {
+  "dev": "wrangler dev",
+  "deploy": "wrangler pages deploy . --branch $CF_PAGES_BRANCH --commit-hash $CF_PAGES_COMMIT_SHA"
+},
