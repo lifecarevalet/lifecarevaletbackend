@@ -1,21 +1,31 @@
-// Original function:
-UserSchema.methods.comparePassword = function (candidatePassword) {
-    return bcrypt.compare(candidatePassword, this.password);
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+
+const UserSchema = new mongoose.Schema({
+    username: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    role: { type: String, enum: ['owner', 'manager', 'driver'], required: true },
+    fullName: { type: String, default: '' },
+    contactNumber: { type: String, default: '' },
+    managerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    pointId: { type: mongoose.Schema.Types.ObjectId, ref: 'Point', default: null } // Location assignment
+});
+
+// PASSWORD HASHING BEFORE SAVING (Pre-save hook)
+UserSchema.pre('save', async function (next) {
+    // Check if the password field has been modified (new user or password reset)
+    if (!this.isModified('password')) return next();
+    
+    // Hash the password
+    this.password = await bcrypt.hash(this.password, 10); 
+    next();
+});
+
+// PASSWORD COMPARISON METHOD (Async function for login check)
+UserSchema.methods.comparePassword = async function (candidatePassword) {
+    // 'await' is necessary here because bcrypt.compare returns a Promise
+    return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Change for testing/fixing:
-UserSchema.methods.comparePassword = function (candidatePassword) {
-    console.log('--- Attempting Password Comparison ---');
-    console.log('Candidate Password:', candidatePassword);
-    console.log('Stored Hash:', this.password);
-    
-    // Check if passwords match (Original logic)
-    const isMatch = bcrypt.compare(candidatePassword, this.password);
-    
-    // If comparison fails, maybe the initial hash was incorrect. 
-    // Return the original comparison result.
-    return isMatch; 
-
-    // **Alternative Test: Agar aapko turant login check karna hai toh is line ko uncomment karein**
-    // return true; 
-};
+// Model Export (Final fix: removed third argument to avoid namespace error, since connection is fixed)
+module.exports = mongoose.model('User', UserSchema); 
