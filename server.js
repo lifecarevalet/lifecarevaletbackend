@@ -2,10 +2,10 @@ const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors'); 
-// --- NEW REQUIRES FOR OWNER INITIALIZATION ---
+// --- REQUIRED LIBRARIES ---
 const bcrypt = require('bcryptjs'); 
 const User = require('./models/User'); 
-// ---------------------------------------------
+// --------------------------
 
 const userRoutes = require('./routes/userRoutes');
 const tokenRoutes = require('./routes/tokenRoutes');
@@ -18,18 +18,19 @@ const app = express();
 app.use(cors()); 
 app.use(express.json()); 
 
-// --- OWNER INITIALIZATION FUNCTION ---
+// --- OWNER INITIALIZATION FUNCTION (Manual Hashing) ---
 const initializeOwner = async () => {
     try {
         const ownerExists = await User.findOne({ username: 'owneradmin' });
-        
+
         if (!ownerExists) {
-            // Default password 'valet123' ko hash kiya ja raha hai
-            const hashedPassword = await bcrypt.hash('valet123', 10);
-            
+            // CRITICAL FIX: Password ko manually hash kiya gaya hai.
+            const defaultPassword = 'valet123';
+            const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
             const newOwner = new User({
-                username: 'owneradmin', // Login ID
-                password: hashedPassword, // Hashed Password
+                username: 'owneradmin', 
+                password: hashedPassword, // Hashed Password directly passed
                 role: 'owner',
                 fullName: 'Main Owner'
             });
@@ -39,16 +40,15 @@ const initializeOwner = async () => {
             console.log('💡 Owner already exists.');
         }
     } catch (error) {
-        // Agar database ya bcrypt mein error aaye
         console.error('❌ Error during Owner initialization:', error.message);
     }
 };
-// --------------------------------------
+// --------------------------------------------------------
 
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI, {
-    dbName: 'valetparking_db' // Hardcode the correct DB name
+    dbName: 'valetparking_db'
 })
     .then(() => {
         console.log('✅ MongoDB connected successfully.');
