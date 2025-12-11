@@ -47,7 +47,9 @@ const initializeOwner = async () => {
 
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGO_URI)
+mongoose.connect(process.env.MONGO_URI, {
+    dbName: 'valetparking_db' // Hardcode the correct DB name
+})
     .then(() => {
         console.log('✅ MongoDB connected successfully.');
         initializeOwner(); // Server connect hote hi Owner ko check aur create karo
