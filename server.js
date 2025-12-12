@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors'); 
 // --- REQUIRED LIBRARIES ---
-const bcrypt = require('bcryptjs'); 
+const bcrypt = require('bcryptjs'); // Still needed if other files use it
 const User = require('./models/User'); 
 // --------------------------
 
@@ -18,23 +18,20 @@ const app = express();
 app.use(cors()); 
 app.use(express.json()); 
 
-// --- OWNER INITIALIZATION FUNCTION (Manual Hashing) ---
+// --- OWNER INITIALIZATION FUNCTION (CRITICAL FIX APPLIED) ---
 const initializeOwner = async () => {
     try {
         const ownerExists = await User.findOne({ username: 'owneradmin' });
 
         if (!ownerExists) {
-            // CRITICAL FIX: Password ko manually hash kiya gaya hai.
-            const defaultPassword = 'valet123';
-            const hashedPassword = await bcrypt.hash(defaultPassword, 10);
-
+            // ✅ FIX: Manual Hashing Removed. Ab yeh User.js ke pre('save') hook par nirbhar karega.
             const newOwner = new User({
                 username: 'owneradmin', 
-                password: hashedPassword, // Hashed Password directly passed
+                password: 'valet123', // Unhashed password passed to the model
                 role: 'owner',
                 fullName: 'Main Owner'
             });
-            await newOwner.save();
+            await newOwner.save(); // <-- Hook will execute and hash the password here
             console.log('✅ Default Owner created: Username: owneradmin / Password: valet123');
         } else {
             console.log('💡 Owner already exists.');
