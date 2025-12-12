@@ -11,22 +11,17 @@ const UserSchema = new mongoose.Schema({
     pointId: { type: mongoose.Schema.Types.ObjectId, ref: 'Point', default: null } 
 });
 
-// PASSWORD HASHING BEFORE SAVING (Pre-save hook - ab yeh sirf update ke liye hai)
+// PASSWORD HASHING BEFORE SAVING
 UserSchema.pre('save', async function (next) {
     if (!this.isModified('password')) return next();
     this.password = await bcrypt.hash(this.password, 10); 
     next();
 });
 
-// models/User.js
-// ...
-// PASSWORD COMPARISON METHOD
+// ✅ FINAL FIX: ASYNC Password Comparison
 UserSchema.methods.comparePassword = async function (candidatePassword) {
-    // 🚨 ULTIMATE TEST: Ignore hashing and return TRUE
-    console.log('--- WARNING: Password comparison skipped for test ---');
-    return true; 
-    // Original line: return await bcrypt.compare(candidatePassword, this.password);
+    // CRITICAL: Ensure both await and bcrypt.compare are present
+    return await bcrypt.compare(candidatePassword, this.password);
 };
-
 
 module.exports = mongoose.model('User', UserSchema);
