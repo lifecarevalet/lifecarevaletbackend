@@ -1,59 +1,67 @@
+// routes/tokenRoutes.js (FINAL UPDATED CODE)
+
 const express = require('express');
 const router = express.Router();
 const Token = require('../models/Token');
-const Counter = require('../models/Counter');
+// const Counter = require('../models/Counter'); // <-- Counter model ab zaroori nahi hai
 const User = require('../models/User'); 
 const { protect, authorize } = require('../middleware/authMiddleware');
 
-const getNextSequenceValue = async (sequenceName) => {
-    const sequenceDocument = await Counter.findByIdAndUpdate(
-        { _id: sequenceName },
-        { $inc: { seq: 1 } },
-        { new: true, upsert: true }
-    );
-    return sequenceDocument.seq;
-};
+// getNextSequenceValue function ko hata diya gaya hai
 
 // --- POST: CAR IN (TOKEN GENERATE) ---
 router.post('/in', protect, authorize(['manager', 'driver']), async (req, res) => {
-    const { carNumber, customerName } = req.body;
-    const { id: driverId, role: driverRole } = req.user; 
+    // Front-end se 'selectedDriverId' aana chahiye jab Manager kisi aur driver ke liye token bana raha ho.
+    const { carNumber, customerName, selectedDriverId } = req.body; 
+    const { id: currentUserId } = req.user; 
+
+    // Final driver ID: agar Manager ne chuna hai, toh woh, warna current user ID
+    const finalDriverId = selectedDriverId || currentUserId;
 
     try {
-        const userDetails = await User.findById(driverId).select('managerId pointId');
+        const userDetails = await User.findById(finalDriverId).select('managerId pointId role');
         if (!userDetails || !userDetails.pointId) {
-            return res.status(400).json({ message: 'User is not assigned to a valid Point.' });
+            return res.status(400).json({ message: 'Selected Driver is not assigned to a valid Point.' });
         }
 
-        const nextTokenNumber = await getNextSequenceValue('tokenid');
+        const pointId = userDetails.pointId; // Location ID
+
+        // 🔥 FIX: Token Number Reset Per Point (Request 8)
+        // 1. Is pointId ke liye sabse bada (highest) token number dhoondhe
+        const lastToken = await Token.findOne({ pointId })
+            .sort({ tokenNumber: -1 }) // Bade se chota sort
+            .select('tokenNumber');
+
+        // 2. Naya token number calculate karein (agar koi token nahi hai, toh 1)
+        const nextTokenNumber = lastToken ? lastToken.tokenNumber + 1 : 1; 
 
         const newToken = new Token({
-            tokenNumber: nextTokenNumber, 
+            tokenNumber: nextTokenNumber, // ✅ FIX: Calculated Token Number
             carNumber, 
             customerName, 
-            driverId, 
-            driverRole,
+            driverId: finalDriverId, 
+            driverRole: userDetails.role || 'driver', 
             managerId: userDetails.managerId || null,
-            pointId: userDetails.pointId // Point ID assigned
+            pointId: pointId
         });
         await newToken.save();
 
-        const ownerDetails = [
-            { name: "Irshad Bloch", contact: "8320678237" },
-            { name: "Akhtar Bloch", contact: "9099090197" }
-        ];
+        // Populate details for popup response
+        await newToken.populate('driverId', 'fullName username');
+        await newToken.populate('pointId', 'name');
 
         res.status(201).json({
             message: 'Token generated successfully',
-            token: { ...newToken._doc, ownerDetails: ownerDetails }
+            token: newToken
         });
     } catch (error) {
+         if (error.code === 11000) return res.status(400).json({ message: 'Duplicate Token Number for this point. Please try again.' });
+        console.error('Token Error:', error);
         res.status(500).json({ message: 'Error generating token.' });
     }
 });
 
 // --- POST: CAR OUT (MARK TOKEN AS COMPLETED) ---
-// 🔥 FIX 1: Authorization list mein 'owner' role add kiya
 router.post('/out/:id', protect, authorize(['owner', 'manager', 'driver']), async (req, res) => {
     const tokenId = req.params.id;
     const { id: currentUserId, role: currentUserRole } = req.user;
@@ -62,7 +70,7 @@ router.post('/out/:id', protect, authorize(['owner', 'manager', 'driver']), asyn
         if (!token || token.outTime !== null) return res.status(404).json({ message: 'Token not found or already OUT.' });
 
         let isAuthorized = false;
-        
+
         // 1. Owner can mark any car out (Global Access)
         if (currentUserRole === 'owner') {
             isAuthorized = true;
@@ -78,7 +86,6 @@ router.post('/out/:id', protect, authorize(['owner', 'manager', 'driver']), asyn
                 isAuthorized = true;
             }
         }
-        // NOTE: Fix 2: Owner ki check ko sabse pehle add kiya gaya hai
 
         if (!isAuthorized) return res.status(403).json({ message: 'Forbidden access.' });
 
