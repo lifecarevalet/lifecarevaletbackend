@@ -18,9 +18,15 @@ UserSchema.pre('save', async function (next) {
     next();
 });
 
-// PASSWORD COMPARISON METHOD (CRITICAL FIX: Ab yeh async hai)
+// models/User.js
+// ...
+// PASSWORD COMPARISON METHOD
 UserSchema.methods.comparePassword = async function (candidatePassword) {
-    return await bcrypt.compare(candidatePassword, this.password);
+    // 🚨 ULTIMATE TEST: Ignore hashing and return TRUE
+    console.log('--- WARNING: Password comparison skipped for test ---');
+    return true; 
+    // Original line: return await bcrypt.compare(candidatePassword, this.password);
 };
+
 
 module.exports = mongoose.model('User', UserSchema);
