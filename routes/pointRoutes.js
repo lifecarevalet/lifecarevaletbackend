@@ -1,51 +1,40 @@
+// routes/pointRoutes.js
 const express = require('express');
 const router = express.Router();
 const Point = require('../models/Point');
-const User = require('../models/User'); 
 const { protect, authorize } = require('../middleware/authMiddleware');
 
-router.use(protect, authorize(['owner']));
-
-// CREATE NEW POINT
-router.post('/', async (req, res) => {
-    const { name, address } = req.body;
-    const ownerId = req.user.id; 
-    if (!name || !address) {
-        return res.status(400).json({ message: 'Point name and address are required.' });
-    }
+// ------------------- OWNER: CREATE POINT (Hotel/Location) -------------------
+router.post('/admin/create', protect, authorize(['owner']), async (req, res) => {
     try {
-        const newPoint = new Point({ name, address, ownerId });
-        await newPoint.save();
-        res.status(201).json({ message: 'Point created successfully', point: newPoint });
-    } catch (error) {
-        if (error.code === 11000) return res.status(400).json({ message: 'Point name already exists.' });
-        res.status(500).json({ message: 'Error creating point.', error });
-    }
-});
+        const { name, address } = req.body;
+        
+        // Owner ID automatically JWT token se liya gaya
+        const ownerId = req.user.id; 
 
-// FETCH ALL POINTS
-router.get('/', async (req, res) => {
-    try {
-        const points = await Point.find({}); 
-        res.json(points);
+        const point = await Point.create({ name, address, ownerId });
+        
+        res.status(201).json({ 
+            success: true, 
+            point: point, 
+            message: `Location '${point.name}' created. ID: ${point._id}` 
+        });
     } catch (error) {
-        res.status(500).json({ message: 'Error fetching points.' });
+        if (error.code === 11000) return res.status(400).json({ message: 'Point Name already exists.' });
+        console.error(error);
+        res.status(500).json({ message: 'Error creating location point.', details: error.message });
     }
 });
 
-// DELETE POINT
-router.delete('/:id', async (req, res) => {
-    const pointId = req.params.id;
+// ------------------- OWNER: GET ALL POINTS -------------------
+router.get('/admin/all', protect, authorize(['owner']), async (req, res) => {
     try {
-        const deletedPoint = await Point.findByIdAndDelete(pointId);
-        if (!deletedPoint) return res.status(404).json({ message: 'Point not found.' });
-
-        // Users ko unassign karna
-        await User.updateMany({ pointId: pointId }, { $set: { pointId: null } });
-
-        res.json({ message: 'Point deleted successfully. Users unassigned.' });
+        // Owner sirf woh points dekhega jo usne banaye hain (optional filter)
+        const ownerId = req.user.id; 
+        const points = await Point.find({ ownerId }).select('name'); 
+        res.status(200).json({ success: true, points });
     } catch (error) {
-        res.status(500).json({ message: 'Error deleting point.', error });
+        res.status(500).json({ message: 'Error fetching location points.' });
     }
 });
 
