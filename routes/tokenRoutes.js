@@ -1,4 +1,4 @@
-const express = require('express');
+Const express = require('express');
 const router = express.Router();
 const Token = require('../models/Token');
 const Counter = require('../models/Counter');
@@ -18,7 +18,7 @@ const getNextSequenceValue = async (sequenceName) => {
 router.post('/in', protect, authorize(['manager', 'driver']), async (req, res) => {
     const { carNumber, customerName } = req.body;
     const { id: driverId, role: driverRole } = req.user; 
-    
+
     try {
         const userDetails = await User.findById(driverId).select('managerId pointId');
         if (!userDetails || !userDetails.pointId) {
@@ -26,7 +26,7 @@ router.post('/in', protect, authorize(['manager', 'driver']), async (req, res) =
         }
 
         const nextTokenNumber = await getNextSequenceValue('tokenid');
-        
+
         const newToken = new Token({
             tokenNumber: nextTokenNumber, 
             carNumber, 
@@ -37,7 +37,7 @@ router.post('/in', protect, authorize(['manager', 'driver']), async (req, res) =
             pointId: userDetails.pointId // Point ID assigned
         });
         await newToken.save();
-        
+
         const ownerDetails = [
             { name: "Irshad Bloch", contact: "8320678237" },
             { name: "Akhtar Bloch", contact: "9099090197" }
@@ -53,21 +53,32 @@ router.post('/in', protect, authorize(['manager', 'driver']), async (req, res) =
 });
 
 // --- POST: CAR OUT (MARK TOKEN AS COMPLETED) ---
-router.post('/out/:id', protect, authorize(['manager', 'driver']), async (req, res) => {
+// 🔥 FIX 1: Authorization list mein 'owner' role add kiya
+router.post('/out/:id', protect, authorize(['owner', 'manager', 'driver']), async (req, res) => {
     const tokenId = req.params.id;
     const { id: currentUserId, role: currentUserRole } = req.user;
     try {
         const token = await Token.findById(tokenId);
         if (!token || token.outTime !== null) return res.status(404).json({ message: 'Token not found or already OUT.' });
-        
+
         let isAuthorized = false;
-        // 1. Khud ka token
-        if (token.driverId.toString() === currentUserId.toString()) isAuthorized = true;
-        // 2. Manager aur uska driver
+        
+        // 1. Owner can mark any car out (Global Access)
+        if (currentUserRole === 'owner') {
+            isAuthorized = true;
+        }
+        // 2. Khud ka token (Driver)
+        else if (token.driverId.toString() === currentUserId.toString()) {
+            isAuthorized = true;
+        }
+        // 3. Manager aur uska driver
         else if (currentUserRole === 'manager') {
             const driverUser = await User.findById(token.driverId).select('managerId');
-            if (driverUser && driverUser.managerId && driverUser.managerId.toString() === currentUserId.toString()) isAuthorized = true;
+            if (driverUser && driverUser.managerId && driverUser.managerId.toString() === currentUserId.toString()) {
+                isAuthorized = true;
+            }
         }
+        // NOTE: Fix 2: Owner ki check ko sabse pehle add kiya gaya hai
 
         if (!isAuthorized) return res.status(403).json({ message: 'Forbidden access.' });
 
@@ -92,7 +103,7 @@ router.get('/data', protect, authorize(['owner', 'manager', 'driver']), async (r
             driverIds.push(currentUserId);
             query.driverId = { $in: driverIds };
         }
-        
+
         const tokens = await Token.find(query)
                                   .populate('driverId', 'fullName username')
                                   .populate('pointId', 'name address')
