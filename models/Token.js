@@ -1,4 +1,3 @@
-
 // models/Token.js (FINAL UPDATED CODE)
 
 const mongoose = require('mongoose');
@@ -16,8 +15,7 @@ const TokenSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
-// ✅ FIX: Compound Index (Request 8): 
-// tokenNumber aur pointId dono milkar unique hone chahiye.
+// Compound Index
 TokenSchema.index({ pointId: 1, tokenNumber: 1 }, { unique: true });
 
 // TTL Index for 7-Day Deletion
