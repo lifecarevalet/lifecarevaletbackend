@@ -1,7 +1,9 @@
+// User.js file mein yeh badlav karein:
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs'); 
 
-const UserSchema = new new mongoose.Schema({
+// ✅ FIX: 'new' ko ek baar hataya gaya
+const UserSchema = new mongoose.Schema({ 
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     role: { type: String, enum: ['owner', 'manager', 'driver'], required: true },
@@ -18,9 +20,8 @@ UserSchema.pre('save', async function (next) {
     next();
 });
 
-// ✅ FIX: Renamed to match the logic in userRoutes.js
+// MatchPassword method (jo pichle message mein fix kiya tha)
 UserSchema.methods.matchPassword = async function (candidatePassword) {
-    // CRITICAL: Ensure both await and bcrypt.compare are present
     return await bcrypt.compare(candidatePassword, this.password);
 };
 
