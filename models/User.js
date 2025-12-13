@@ -1,8 +1,6 @@
-// User.js file mein yeh badlav karein:
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs'); 
 
-// ✅ FIX: 'new' ko ek baar hataya gaya
 const UserSchema = new mongoose.Schema({ 
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
@@ -20,7 +18,7 @@ UserSchema.pre('save', async function (next) {
     next();
 });
 
-// MatchPassword method (jo pichle message mein fix kiya tha)
+// ✅ FIX: matchPassword method name is correct now
 UserSchema.methods.matchPassword = async function (candidatePassword) {
     return await bcrypt.compare(candidatePassword, this.password);
 };
