@@ -1,7 +1,9 @@
+// models/Token.js (FINAL UPDATED CODE)
+
 const mongoose = require('mongoose');
 
 const TokenSchema = new mongoose.Schema({
-    tokenNumber: { type: Number, required: true }, // 'unique: true' removed
+    tokenNumber: { type: Number, required: true }, 
     carNumber: { type: String, required: true },
     customerName: { type: String, default: 'N/A' },
     driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -13,7 +15,8 @@ const TokenSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
-// ✅ FIX 1: Add a compound index to ensure tokenNumber is unique PER pointId
+// ✅ FIX: Compound Index (Request 8): 
+// tokenNumber aur pointId dono milkar unique hone chahiye.
 TokenSchema.index({ pointId: 1, tokenNumber: 1 }, { unique: true });
 
 // TTL Index for 7-Day Deletion
