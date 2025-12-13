@@ -11,7 +11,7 @@ const createToken = (user) => {
   return jwt.sign(
     {
       id: user._id,
-      role: user.role, // 🔥 VERY IMPORTANT
+      role: user.role === 'owner' ? 'admin' : user.role, // 🔥 OWNER → ADMIN
     },
     process.env.JWT_SECRET,
     { expiresIn: '30d' }
@@ -28,34 +28,29 @@ router.post(
 
     const user = await User.findOne({ username });
 
-    // Username / password check
     if (!user || !(await user.matchPassword(password))) {
-      return res
-        .status(401)
-        .json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // 🔐 ROLE LOGIC (ADMIN & OWNER SAME)
-    const adminOwnerGroup = ['admin', 'owner'];
+    // 🔥 OWNER ko ADMIN treat karo
+    const dbRole = user.role === 'owner' ? 'admin' : user.role;
+    const selectedRole = role === 'owner' ? 'admin' : role;
 
+    // ❌ Role mismatch ONLY for manager / driver
     if (
-      adminOwnerGroup.includes(role) &&
-      adminOwnerGroup.includes(user.role)
+      (selectedRole === 'manager' && dbRole !== 'manager') ||
+      (selectedRole === 'driver' && dbRole !== 'driver')
     ) {
-      // ✅ allowed
-    } else if (user.role !== role) {
       return res.status(401).json({
-        message: `Role mismatch. Account is registered as ${user.role}`,
+        message: `Role mismatch. Account is registered as ${dbRole}`,
       });
     }
 
-    // Populate data
     const populatedUser = await User.findById(user._id)
       .select('-password')
       .populate('pointId', 'name address')
       .populate('managerId', 'fullName username');
 
-    // Final response
     res.json({
       user: populatedUser,
       token: createToken(user),
@@ -65,13 +60,13 @@ router.post(
 // =============================================
 
 
-// ============== ADMIN / OWNER ROUTE ==========
+// ============== ADMIN ROUTE ==================
 router.get(
   '/admin/users',
   protect,
-  authorize(['admin']), // 🔥 owner automatically allowed
+  authorize(['admin']),
   asyncHandler(async (req, res) => {
-    const users = await User.find({ role: { $ne: 'owner' } })
+    const users = await User.find({ role: { $ne: 'admin' } })
       .select('-password')
       .populate('managerId', 'fullName username')
       .populate('pointId', 'name address');
