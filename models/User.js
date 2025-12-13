@@ -7,34 +7,21 @@ const UserSchema = new mongoose.Schema({
     role: { type: String, enum: ['owner', 'manager', 'driver'], required: true },
     fullName: { type: String, default: '' },
     contactNumber: { type: String, default: '' },
-
-    // Location/Point assignment
-    pointId: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'Point', 
-    },
-
-    // Driver ke liye Manager ID
-    managerId: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'User', 
-    },
-
-}, {
-    timestamps: true
+    managerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    pointId: { type: mongoose.Schema.Types.ObjectId, ref: 'Point', default: null } 
 });
 
 // PASSWORD HASHING BEFORE SAVING
 UserSchema.pre('save', async function (next) {
     if (!this.isModified('password')) return next();
-    const salt = await bcrypt.genSalt(10); // Salt generate kiya gaya
-    this.password = await bcrypt.hash(this.password, salt); // Salt ke saath hash kiya gaya
+    this.password = await bcrypt.hash(this.password, 10); 
     next();
 });
 
-// ✅ FIX: Password Comparison Method ka naam 'matchPassword' kiya gaya
-UserSchema.methods.matchPassword = async function (enteredPassword) {
-    return await bcrypt.compare(enteredPassword, this.password);
+// ✅ FINAL FIX: ASYNC Password Comparison
+UserSchema.methods.comparePassword = async function (candidatePassword) {
+    // CRITICAL: Ensure both await and bcrypt.compare are present
+    return await bcrypt.compare(candidatePassword, this.password);
 };
 
 module.exports = mongoose.model('User', UserSchema);
