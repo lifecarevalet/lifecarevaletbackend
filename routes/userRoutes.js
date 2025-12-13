@@ -1,36 +1,31 @@
-// routes/userRoutes.js (FINAL UPDATED CODE WITH FIXES)
-
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const User = require('../models/User');
+// 🔥 FIX: Zaroori imports: login function aur middleware
+const { loginUser } = require('../controllers/userController'); 
 const { protect, authorize } = require('../middleware/authMiddleware');
+// NOTE: Purane imports jaise jwt, bcrypt, User ko yahan ki zarurat nahi hai
 
-// ------------------- LOGIN -------------------
-// ... (No change in this section)
+// ------------------- LOGIN ROUTE (CRITICAL FIX) -------------------
+// POST /api/users/login 
+router.post('/login', loginUser); // <-- Yahi line missing thi!
+// ------------------------------------------------------------------
 
-// ------------------- OWNER/MANAGER: CREATE USER -------------------
-// ... (No change in this section - logic is already correct for auto-assignment)
+// ------------------- ADMIN/MANAGEMENT ROUTES -------------------
 
-// ------------------- OWNER: UPDATE/DELETE (CUD functions here...) 
-// ... (No change in UPDATE/DELETE/RESET PASSWORD sections)
-
-// 🔥 CRITICAL FIX: User List Endpoint (Issue 1 & 2)
-router.get('/admin/users', protect, authorize(['owner', 'manager']), async (req, res) => { // <--- FIX 5: Allowed 'manager' role
+// Owner/Manager: Sabhi users ki list
+router.get('/admin/users', protect, authorize(['owner', 'manager']), async (req, res) => { 
     try {
-        // Owner ke alawa sabhi users ko fetch kiya
         const users = await User.find({ role: { $ne: 'owner' } })
             .select('-password')
-            // 🔥 FIX 6: Populate Manager info with username (for client-side dropdown)
             .populate('managerId', 'fullName username') 
-            // 🔥 FIX 7: Populate Point info with name and address (for manager/driver assignment)
             .populate('pointId', 'name address'); 
-            
+
         res.json(users);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching users.' });
     }
 });
+
+// ... (Baaki sab userRoutes jaise POST /admin/create, PUT /admin/update-user, etc. yahan honge)
 
 module.exports = router;
