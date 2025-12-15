@@ -18,15 +18,12 @@ exports.protect = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // FIX 1: Hum yahaan role ko clean (lowercase/trim) karte hain taaki aage Role Mismatch na ho
+    // FIX 1: Role ko lowercase aur trim karna zaroori hai
     if (decoded.role) {
       decoded.role = decoded.role.toLowerCase().trim();
     }
     
-    // Aapke purane code se owner to admin logic
-    if (decoded.role === 'owner') {
-      decoded.role = 'admin'; // Isse 'owner' ko 'admin' ki permissions mil jayengi
-    }
+    // 🔥 OWNER -> ADMIN logic hata di gayi hai!
 
     req.user = decoded;
     next();
@@ -39,11 +36,10 @@ exports.protect = (req, res, next) => {
 // Middleware to authorize roles
 exports.authorize = (allowedRoles) => {
   return (req, res, next) => {
-    // FIX 2: req.user.role ab 'protect' middleware se already cleaned (lowercase) aayega
     const userRole = req.user.role; 
 
-    // allowedRoles (jaise ['admin']) mein check karte hain
-    if (!userRole || !allowedRoles.includes(userRole)) { // Agar userRole defined nahi hai ya allowed roles mein nahi hai
+    // Ab allowedRoles.includes() se check karenge
+    if (!userRole || !allowedRoles.includes(userRole)) {
       return res
         .status(403)
         .json({ message: 'Forbidden: Role mismatch' });
