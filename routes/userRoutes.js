@@ -1,59 +1,16 @@
-const express = require('express');
-const router = express.Router();
-const jwt = require('jsonwebtoken'); 
-const User = require('../models/User'); 
-const { protect, authorize } = require('../middleware/authMiddleware');
-
-// =================================================================================
-// 🛑 HELPER FUNCTION: Token Generation
-const generateToken = (id, role) => {
-  if (!process.env.JWT_SECRET) {
-    throw new Error("Server configuration error: Missing JWT secret.");
-  }
-  return jwt.sign({ id, role: role.toLowerCase().trim() }, process.env.JWT_SECRET, { 
-    expiresIn: '30d', 
-  });
-};
-// =================================================================================
-
-
-// =================================================================================
-// 🛑 PUBLIC: USER LOGIN LOGIC 
-const loginUser = async (req, res) => {
-    try {
-        const { username, password, role } = req.body; 
-        const user = await User.findOne({ username });
-
-        if (!user || !(await user.matchPassword(password)) || user.role.toLowerCase().trim() !== role.toLowerCase().trim()) { 
-            return res.status(401).json({ message: 'Invalid Credentials (Username/Password/Role).' });
-        }
-
-        const populatedUser = await User.findById(user._id)
-            .select('-password') 
-            .populate('pointId') 
-            .populate('managerId'); 
-
-        res.json({
-            user: populatedUser, 
-            token: generateToken(user._id, user.role), 
-        });
-    } catch (error) {
-        console.error("Critical Login Server Error:", error);
-        res.status(500).json({ message: 'Internal Server Error during login process.' });
-    }
-};
-// =================================================================================
-
-
-// =================================================================================
-// ------------------- ADMIN: MANAGER/DRIVER REGISTER FUNCTION -------------------
 const registerUser = async (req, res) => {
     try {
-        const { username, password, role, fullName, contactNumber, pointId, managerId } = req.body;
+        // Sirf woh fields nikalein jo form mein hain
+        const { username, password, fullName, pointId } = req.body;
+        
+        // Yeh fields form se nahi aa rahe honge, isliye inhe undefined/default rakhenge
+        const contactNumber = req.body.contactNumber; // Agar form mein hai toh theek, varna undefined
+        const managerId = req.body.managerId; // Manager create karte samay yeh nahi aayega
+        const role = req.body.role || 'manager'; // Agar role nahi aaya, toh use 'manager' maan lo
 
-        // 1. Mandatory Fields Check
-        if (!username || !password || !role) {
-            return res.status(400).json({ message: 'Username, Password, and Role are required fields.' });
+        // 1. Mandatory Fields Check (Ab sirf username aur password required hai)
+        if (!username || !password) {
+            return res.status(400).json({ message: 'Username and Password are required fields.' });
         }
         
         // 2. Role Validation and Cleaning
@@ -68,17 +25,19 @@ const registerUser = async (req, res) => {
             return res.status(400).json({ message: 'User with this username already exists.' });
         }
         
-        // 4. Safe Data Construction (Mongoose Cast Error Se Bachne Ke Liye)
+        // 4. Safe Data Construction
         const createData = {
             username,
             password,
             role: cleanedRole, 
             fullName: fullName || '', 
-            contactNumber: contactNumber || '', 
+            contactNumber: contactNumber || '', // Agar form se nahi aaya toh '' (empty string)
         };
         
         // PointId aur ManagerId ko sirf tabhi shamil karein jab woh valid ObjectId ki length ke hon (24 characters)
-        if (pointId && pointId.length === 24) createData.pointId = pointId; 
+        // Ya agar PointId select karna compulsory hai, toh woh valid ID hi honi chahiye
+        if (pointId && pointId.length === 24) createData.pointId = pointId;
+        // Manager ID Manager ke liye nahi chahiye
         if (managerId && managerId.length === 24) createData.managerId = managerId;
         
         // 5. User Create
@@ -93,6 +52,7 @@ const registerUser = async (req, res) => {
         });
 
     } catch (error) {
+        // ... Error Handling (Same as before)
         if (error.name === 'ValidationError') {
              const messages = Object.values(error.errors).map(val => val.message);
              return res.status(400).json({ message: messages.join(', ') });
@@ -105,46 +65,4 @@ const registerUser = async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error: Could not register user.' });
     }
 };
-// =================================================================================
-
-
-// ------------------- PUBLIC ROUTES -------------------
-router.post('/login', loginUser); 
-
-// ------------------- ADMIN/MANAGEMENT ROUTES -------------------
-
-// 1. POST /api/users/admin/register
-router.post('/admin/register', protect, authorize(['admin']), registerUser); 
-
-// 2. POST /api/users/admin/create (Frontend Mismatch Fix 1)
-router.post('/admin/create', protect, authorize(['admin']), registerUser); 
-
-// 3. POST /api/users/register (Frontend Mismatch Fix 2)
-router.post('/register', protect, authorize(['admin']), registerUser); 
-
-// 4. GET /api/users/admin/all (for dashboard)
-router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
-    try {
-        const users = await User.find().select('_id username role fullName contactNumber pointId managerId'); 
-        res.status(200).json({ success: true, users });
-    } catch (error) {
-        console.error('Fetching all users error:', error);
-        res.status(500).json({ message: 'Error fetching all users.', details: error.message });
-    }
-});
-
-// 5. GET /api/users/admin/users (Filtered list)
-router.get('/admin/users', protect, authorize(['admin', 'manager']), async (req, res) => { 
-    try {
-        const users = await User.find({ role: { $ne: 'owner' } }) 
-            .select('-password')
-            .populate('managerId', 'fullName username') 
-            .populate('pointId', 'name address'); 
-
-        res.json(users);
-    } catch (error) {
-        res.status(500).json({ message: 'Error fetching users.' });
-    }
-});
-
-module.exports = router;
+// End of registerUser function
