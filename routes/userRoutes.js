@@ -1,4 +1,4 @@
-const express = require('express'); // <-- FIX: Yahan 'express' hona chahiye
+const express = require('express');
 const router = express.Router(); 
 const jwt = require('jsonwebtoken'); 
 const User = require('../models/User'); 
@@ -109,17 +109,21 @@ const registerUser = async (req, res) => {
 // ------------------- PUBLIC ROUTES -------------------
 router.post('/login', loginUser); 
 
-// ------------------- ADMIN/MANAGEMENT ROUTES (TESTING URL PATH) -------------------
+// ------------------- ADMIN/MANAGEMENT ROUTES (URL PATH FIX: create-user) -------------------
 
-// 🔥 ULTIMATE TEST ROUTE 🔥
-// Yeh dekhega ki kya URL /admin/create/ jaisa kuch toh nahi hai
+// 🔥 FINAL CORRECT ROUTE: Yeh ab 'create-user' URL ko sahi se handle karega
 router.post('/admin/:path', protect, authorize(['admin']), (req, res, next) => {
-    const validPaths = ['create', 'register'];
+    // Valid paths mein 'create-user' shamil hai
+    const validPaths = ['create', 'register', 'create-user']; 
     
     if (validPaths.includes(req.params.path.toLowerCase())) {
-        console.log(`✅ TEST SUCCESS: URL path is correct: /admin/${req.params.path}`);
+        console.log(`✅ URL Match: /admin/${req.params.path}`);
+        return next(); // registerUser par jaao
+    } else if (req.params.path.toLowerCase() === 'all' || req.params.path.toLowerCase() === 'users') {
+        // Yeh GET routes ho sakte hain, isliye 404/500 se bachne ke liye unhe chhod do
         return next();
     } else {
+        // Agar koi aur galat URL hai toh 404 error do
         return res.status(404).json({ 
             message: `Error: Invalid URL Path for User Creation. Received path: ${req.params.path}`,
             detail: 'Kripya frontend code mein API URL check karein.'
@@ -127,13 +131,6 @@ router.post('/admin/:path', protect, authorize(['admin']), (req, res, next) => {
     }
 }, registerUser); 
 
-
-// 🛑 PURANE ROUTES KO COMMENT KIYA GAYA HAI TAAME TEST ROUTE CHALE
-/*
-router.post('/admin/register', protect, authorize(['admin']), registerUser); 
-router.post('/admin/create', protect, authorize(['admin']), registerUser); 
-router.post('/register', protect, authorize(['admin']), registerUser); 
-*/
 
 // 4. GET /api/users/admin/all (for dashboard)
 router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
