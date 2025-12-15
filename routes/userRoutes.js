@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken'); 
-const User = require('../models/User'); // User model
-const { protect, authorize } = require('../middleware/authMiddleware'); // Middleware
+const User = require('../models/User'); 
+const { protect, authorize } = require('../middleware/authMiddleware');
 
 // =================================================================================
-// 🛑 HELPER FUNCTION: Token Generation (Role is cleaned and included)
+// 🛑 HELPER FUNCTION: Token Generation
 const generateToken = (id, role) => {
   if (!process.env.JWT_SECRET) {
     throw new Error("Server configuration error: Missing JWT secret.");
@@ -24,12 +24,10 @@ const loginUser = async (req, res) => {
         const { username, password, role } = req.body; 
         const user = await User.findOne({ username });
 
-        // User, Password, aur Role Match check (case-insensitive)
         if (!user || !(await user.matchPassword(password)) || user.role.toLowerCase().trim() !== role.toLowerCase().trim()) { 
             return res.status(401).json({ message: 'Invalid Credentials (Username/Password/Role).' });
         }
 
-        // Data Populate (Point aur Manager details)
         const populatedUser = await User.findById(user._id)
             .select('-password') 
             .populate('pointId') 
@@ -48,74 +46,28 @@ const loginUser = async (req, res) => {
 
 
 // =================================================================================
-// ------------------- ADMIN: MANAGER/DRIVER REGISTER FUNCTION -------------------
+// ------------------- ADMIN: MANAGER/DRIVER REGISTER FUNCTION (TESTING) -------------------
 const registerUser = async (req, res) => {
+    // 🔥 TESTING CODE: Hum yahan turant success bhej rahe hain
+    // Agar frontend ko yeh message milta hai, toh iska matlab hai ki
+    // URL Sahi Hai aur problem is function ke andar ke code mein thi.
+    
+    // Agar "Could not connect" error aaye, toh iska matlab hai ki
+    // frontend galat URL par bhej raha hai (404) ya server so raha hai (Timeout).
+    return res.status(200).json({ 
+        success: true,
+        test_message: 'TESTING: Route Sahi Hua. Ab hum asali code check karenge.', 
+        data: req.body // yeh dikhayega ki frontend se kya data aaya
+    });
+    
+    /*
+    // ASALI CODE (Jo humne pehle dala tha, ab comment kar diya gaya hai)
     try {
-        // Sirf woh fields extract karein jo non-ObjectId hain aur required hain
-        const { username, password, role, fullName, contactNumber } = req.body;
-        
-        // ObjectId fields bhi body se nikaal rahe hain, lekin unhe create mein use nahi karenge
-        const { pointId, managerId } = req.body; 
-
-        const cleanedRole = role.toLowerCase().trim();
-        if (!['manager', 'driver'].includes(cleanedRole)) {
-            return res.status(400).json({ message: 'Invalid role for registration. Only Manager and Driver allowed.' });
-        }
-
-        const userExists = await User.findOne({ username });
-        if (userExists) {
-            return res.status(400).json({ message: 'User already exists.' });
-        }
-        
-        // 🔥 CRITICAL FIX: pointId aur managerId ko yahaan se hata diya gaya hai.
-        // Agar woh empty string aate hain, toh server crash nahi hoga aur woh default: null ho jayenge.
-        const user = await User.create({
-            username,
-            password,
-            role: cleanedRole, 
-            fullName,
-            contactNumber,
-            // pointId aur managerId ko sirf tabhi shamil karein jab woh valid ObjectId hon,
-            // Varna unhe yahaan se hata dein.
-            ...(pointId && pointId !== '' && { pointId }),
-            ...(managerId && managerId !== '' && { managerId }),
-        });
-        
-        // 🛑 NOTE: Upar wala code (spread operator) bhi Mongoose Cast error de sakta hai.
-        // Sabse safe tareeka neeche diya gaya hai:
-
-        /* --- SABSE SAFE LOGIC --- */
-        const createData = {
-            username,
-            password,
-            role: cleanedRole, 
-            fullName,
-            contactNumber,
-        };
-        // Sirf tabhi shamil karein jab value valid lage (front-end ki galti se bachne ke liye)
-        if (pointId && pointId.length === 24) createData.pointId = pointId; 
-        if (managerId && managerId.length === 24) createData.managerId = managerId;
-        
-        const safeUser = await User.create(createData);
-        /* --- SABSE SAFE LOGIC KHATAM --- */
-
-        const userResponse = await User.findById(safeUser._id).select('-password');
-
-        res.status(201).json({ 
-            success: true, 
-            user: userResponse, 
-            message: `${role} '${fullName}' created successfully.` 
-        });
-
+        // ... Original Manager Registration code yahan aayega ...
     } catch (error) {
-        if (error.name === 'ValidationError') {
-             const messages = Object.values(error.errors).map(val => val.message);
-             return res.status(400).json({ message: messages.join(', ') });
-        }
-        // Agar ab bhi 500 aara hai, toh iska matlab hai ki yahi error hai
-        console.error('User registration error:', error);
-        res.status(500).json({ message: 'Error registering user. Please check data fields.' });
+        // ...
     }
+    */
 };
 // =================================================================================
 
@@ -153,7 +105,5 @@ router.get('/admin/users', protect, authorize(['admin', 'manager']), async (req,
         res.status(500).json({ message: 'Error fetching users.' });
     }
 });
-
-// ... (Other routes like update/delete should be here)
 
 module.exports = router;
