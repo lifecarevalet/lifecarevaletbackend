@@ -1,4 +1,4 @@
-const express = require('express');
+const express = require('express'); // <-- FIX: Yahan 'express' hona chahiye
 const router = express.Router(); 
 const jwt = require('jsonwebtoken'); 
 const User = require('../models/User'); 
@@ -49,32 +49,26 @@ const loginUser = async (req, res) => {
 // ------------------- ADMIN: MANAGER/DRIVER REGISTER FUNCTION -------------------
 const registerUser = async (req, res) => {
     try {
-        // Form ke anusaar fields nikalna 
         const { username, password, fullName, pointId } = req.body;
         
-        // Agar form se nahi aaye, toh inhein req.body se nikalo, varna default value do
         const contactNumber = req.body.contactNumber; 
         const managerId = req.body.managerId; 
         const role = req.body.role || 'manager'; 
 
-        // 1. Mandatory Fields Check
         if (!username || !password) {
             return res.status(400).json({ message: 'Username and Password are required fields.' });
         }
         
-        // 2. Role Validation and Cleaning
         const cleanedRole = role.toLowerCase().trim();
         if (!['manager', 'driver'].includes(cleanedRole)) {
             return res.status(400).json({ message: 'Invalid role for registration. Only Manager and Driver allowed.' });
         }
 
-        // 3. Duplicate User Check
         const userExists = await User.findOne({ username });
         if (userExists) {
             return res.status(400).json({ message: 'User with this username already exists.' });
         }
         
-        // 4. Safe Data Construction (Robust Validation)
         const createData = {
             username,
             password,
@@ -83,11 +77,9 @@ const registerUser = async (req, res) => {
             contactNumber: contactNumber || '', 
         };
         
-        // PointId aur ManagerId ko sirf tabhi shamil karein jab woh valid ObjectId ki length ke hon (24 characters)
         if (pointId && pointId.length === 24) createData.pointId = pointId; 
         if (managerId && managerId.length === 24) createData.managerId = managerId;
         
-        // 5. User Create
         const user = await User.create(createData);
 
         const userResponse = await User.findById(user._id).select('-password');
@@ -122,15 +114,12 @@ router.post('/login', loginUser);
 // 🔥 ULTIMATE TEST ROUTE 🔥
 // Yeh dekhega ki kya URL /admin/create/ jaisa kuch toh nahi hai
 router.post('/admin/:path', protect, authorize(['admin']), (req, res, next) => {
-    // URL path ko check karo (jaise 'create' ya 'register')
     const validPaths = ['create', 'register'];
     
     if (validPaths.includes(req.params.path.toLowerCase())) {
         console.log(`✅ TEST SUCCESS: URL path is correct: /admin/${req.params.path}`);
-        // Agar sahi hai, toh asali registerUser function par aage badho
         return next();
     } else {
-        // Agar URL galat hai, toh yeh message aayega, "Could not connect" nahi.
         return res.status(404).json({ 
             message: `Error: Invalid URL Path for User Creation. Received path: ${req.params.path}`,
             detail: 'Kripya frontend code mein API URL check karein.'
