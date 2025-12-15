@@ -9,7 +9,6 @@ const { protect, authorize } = require('../middleware/authMiddleware'); // prote
 // POST /api/points/admin/create
 router.post('/admin/create', protect, authorize(['admin']), async (req, res) => {
     try {
-        // req.body mein name aur address aa rahe hain
         const { name, address } = req.body; 
         const ownerId = req.user.id; 
 
@@ -21,7 +20,7 @@ router.post('/admin/create', protect, authorize(['admin']), async (req, res) => 
             message: `Location '${point.name}' created. ID: ${point._id}` 
         });
     } catch (error) {
-        // FIX: Mongoose Validation Errors (agar 'name' empty hai ya Point.js mein koi required field missing hai)
+        // FIX: Mongoose Validation Errors 
         if (error.name === 'ValidationError') {
             const messages = Object.values(error.errors).map(val => val.message);
             return res.status(400).json({ message: messages.join(', ') });
@@ -31,7 +30,6 @@ router.post('/admin/create', protect, authorize(['admin']), async (req, res) => 
         if (error.code === 11000) return res.status(400).json({ message: 'Location Name already exists.' });
         
         console.error('Point creation error:', error);
-        // Generic 500 error
         res.status(500).json({ message: 'Error creating location point.', details: error.message });
     }
 });
@@ -67,16 +65,12 @@ router.delete('/admin/delete/:id', protect, authorize(['admin']), async (req, re
             return res.status(404).json({ message: 'Location not found.' });
         }
 
-        // 🚨 CRITICAL FIX FOR DEPLOYMENT FAILURE:
-        // Yeh block 'pointId is required' error paida kar raha hai server startup ke dauraan.
-        // Deploy successful hone tak isse comment rakhein.
-        /*
+        // ✅ FINAL FIX: Deployment successful hone ke baad, yeh block wapas ON kar diya gaya hai
         // 2. Uss Point ID को सभी Users (Manager/Driver) के 'pointId' और 'managerId' से हटाना (null करना)
         await User.updateMany( 
             { pointId: pointId },
             { $set: { pointId: null, managerId: null } }
         );
-        */
 
         res.status(200).json({ message: 'Location deleted successfully.' });
     } catch (error) {
