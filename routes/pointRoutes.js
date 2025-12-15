@@ -3,14 +3,18 @@
 const express = require('express');
 const router = express.Router();
 const Point = require('../models/Point');
-const User = require('../models/User'); // User model import kiya gaya hai
-const { protect, authorize } = require('../middleware/authMiddleware');
+const User = require('../models/User'); 
+const { protect, authorize } = require('../middleware/authMiddleware'); // protect aur authorize middleware
 
-// ------------------- OWNER: CREATE POINT (Hotel/Location) -------------------
-router.post('/admin/create', protect, authorize(['owner']), async (req, res) => {
+// =================================================================================
+// ------------------- ADMIN/OWNER: CREATE POINT (Hotel/Location) -------------------
+// POST /api/points/admin/create
+// FIX: authorize(['owner']) -> authorize(['admin'])
+router.post('/admin/create', protect, authorize(['admin']), async (req, res) => {
     try {
         const { name, address } = req.body;
 
+        // OWNER ID को req.user से लें। authMiddleware इसे 'admin' के रूप में सेट करता है।
         const ownerId = req.user.id; 
 
         const point = await Point.create({ name, address, ownerId });
@@ -22,35 +26,46 @@ router.post('/admin/create', protect, authorize(['owner']), async (req, res) => 
         });
     } catch (error) {
         if (error.code === 11000) return res.status(400).json({ message: 'Point Name already exists.' });
-        console.error(error);
+        console.error('Point creation error:', error);
         res.status(500).json({ message: 'Error creating location point.', details: error.message });
     }
 });
+// =================================================================================
 
-// ------------------- OWNER: GET ALL POINTS -------------------
-router.get('/admin/all', protect, authorize(['owner']), async (req, res) => {
+
+// =================================================================================
+// ------------------- ADMIN/OWNER: GET ALL POINTS -------------------
+// GET /api/points/admin/all
+// FIX: authorize(['owner']) -> authorize(['admin'])
+router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
     try {
+        // अगर आप OwnerId से filter कर रहे हैं, तो यह सही है:
         const ownerId = req.user.id; 
-        const points = await Point.find({ ownerId }).select('name'); 
+        const points = await Point.find({ ownerId }).select('name address'); // address भी लिया
         res.status(200).json({ success: true, points });
     } catch (error) {
+        console.error('Fetching points error:', error);
         res.status(500).json({ message: 'Error fetching location points.' });
     }
 });
+// =================================================================================
 
-// ------------------- OWNER: DELETE POINT -------------------
-router.delete('/admin/delete/:id', protect, authorize(['owner']), async (req, res) => {
+
+// =================================================================================
+// ------------------- ADMIN/OWNER: DELETE POINT -------------------
+// DELETE /api/points/admin/delete/:id
+// FIX: authorize(['owner']) -> authorize(['admin'])
+router.delete('/admin/delete/:id', protect, authorize(['admin']), async (req, res) => {
     const pointId = req.params.id; 
     try {
-        // 1. Point ko database se delete karein
+        // 1. Point को database से delete करें
         const point = await Point.findByIdAndDelete(pointId);
 
         if (!point) {
             return res.status(404).json({ message: 'Location not found.' });
         }
-        
-        // 🔥 FIX: User References ko clean karna (Request 1 Backend)
-        // 2. Uss Point ID ko sabhi Users ke 'pointId' aur 'managerId' se hatana (null karna)
+
+        // 2. Uss Point ID को सभी Users (Manager/Driver) के 'pointId' और 'managerId' से हटाना (null करना)
         await User.updateMany(
             { pointId: pointId },
             { $set: { pointId: null, managerId: null } }
@@ -62,5 +77,6 @@ router.delete('/admin/delete/:id', protect, authorize(['owner']), async (req, re
         res.status(500).json({ message: 'Error deleting location point.' });
     }
 });
+// =================================================================================
 
 module.exports = router;
