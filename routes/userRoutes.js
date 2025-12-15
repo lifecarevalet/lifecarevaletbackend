@@ -5,13 +5,11 @@ const User = require('../models/User'); // Assuming User model is imported
 const { protect, authorize } = require('../middleware/authMiddleware'); // Middleware import
 
 // =================================================================================
-// 🛑 HELPER FUNCTION: Token Generation (Role and ID included, and role cleaned)
+// 🛑 HELPER FUNCTION: Token Generation
 const generateToken = (id, role) => {
   if (!process.env.JWT_SECRET) {
-    console.error("JWT_SECRET is not defined in the environment variables!");
     throw new Error("Server configuration error: Missing JWT secret.");
   }
-  // Role ko lowercase aur trim karke token mein daalte hain
   return jwt.sign({ id, role: role.toLowerCase().trim() }, process.env.JWT_SECRET, { 
     expiresIn: '30d', 
   });
@@ -23,22 +21,18 @@ const generateToken = (id, role) => {
 // 🛑 PUBLIC: USER LOGIN LOGIC
 const loginUser = async (req, res) => {
     try {
-        const { username, password, role } = req.body; // frontend se aaya role
-
+        const { username, password, role } = req.body; 
         const user = await User.findOne({ username });
 
-        // User exist na ho, password match na ho, ya role match na ho (case-insensitive)
         if (!user || !(await user.matchPassword(password)) || user.role.toLowerCase().trim() !== role.toLowerCase().trim()) { 
             return res.status(401).json({ message: 'Invalid credentials or role mismatch.' });
         }
 
-        // Success: User data populate karo
         const populatedUser = await User.findById(user._id)
             .select('-password') 
             .populate('pointId', 'name address') 
             .populate('managerId', 'fullName username'); 
 
-        // Token generate karte waqt database se sahi role bhejte hain
         res.json({
             user: populatedUser, 
             token: generateToken(user._id, user.role), 
@@ -57,12 +51,12 @@ router.post('/login', loginUser);
 
 // =================================================================================
 // ------------------- ADMIN: REGISTER NEW MANAGER/DRIVER -------------------
-// POST /api/users/admin/register  <--- YAHI ROUTE MISSING THA (Manager Create Fix)
+// POST /api/users/admin/register  <--- MANAGER/DRIVER CREATE ROUTE
 router.post('/admin/register', protect, authorize(['admin']), async (req, res) => {
     try {
         const { username, password, role, fullName, contactNumber, pointId, managerId } = req.body;
         
-        // 1. Role validation (sirf manager aur driver ko allow karein)
+        // 1. Role validation 
         const cleanedRole = role.toLowerCase().trim();
         if (!['manager', 'driver'].includes(cleanedRole)) {
             return res.status(400).json({ message: 'Invalid role for registration. Only Manager and Driver allowed.' });
@@ -78,11 +72,12 @@ router.post('/admin/register', protect, authorize(['admin']), async (req, res) =
         const user = await User.create({
             username,
             password,
-            role: cleanedRole, // Cleaned role set
+            role: cleanedRole, 
             fullName,
             contactNumber,
-            pointId: pointId || null, 
-            managerId: managerId || null, 
+            // FIX: PointId aur ManagerId ko sirf tabhi include karein jab woh body mein hain
+            pointId: pointId || undefined, 
+            managerId: managerId || undefined, 
         });
 
         const userResponse = await User.findById(user._id).select('-password');
@@ -125,7 +120,6 @@ router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
 // GET /api/users/admin/users 
 router.get('/admin/users', protect, authorize(['admin', 'manager']), async (req, res) => { 
     try {
-        // Owner role ko chhodkar baaki users
         const users = await User.find({ role: { $ne: 'owner' } }) 
             .select('-password')
             .populate('managerId', 'fullName username') 
