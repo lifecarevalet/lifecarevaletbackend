@@ -1,89 +1,91 @@
 const express = require('express');
 const router = express.Router();
-const Point = require('../models/Point');
-const User = require('../models/User'); 
+const User = require('../models/User');
+const jwt = require('jsonwebtoken'); // Assuming JWT is used for token generation
 const { protect, authorize } = require('../middleware/authMiddleware');
 
+// FIX: Agar aapne jwt install nahi kiya hai toh: npm install jsonwebtoken
+
 // =================================================================================
-// ------------------- ADMIN/OWNER: CREATE POINT (Hotel/Location) -------------------
-// POST /api/points/admin/create
-router.post('/admin/create', protect, authorize(['admin']), async (req, res) => {
+// --- HELPER FUNCTION: Token Generation (Agar aapka token kahi aur generate nahi ho raha) ---
+const generateToken = (id, role) => {
+    return jwt.sign({ id, role }, process.env.JWT_SECRET, {
+        expiresIn: '1d', // Token valid for 1 day
+    });
+};
+// =================================================================================
+
+
+// =================================================================================
+// ------------------- PUBLIC: USER LOGIN -------------------
+// POST /api/users/login
+router.post('/login', async (req, res) => {
     try {
-        const { name, address } = req.body;
-        // OWNER ID को req.user से लें।
-        const ownerId = req.user.id; 
+        const { username, password } = req.body;
 
-        const point = await Point.create({ name, address, ownerId });
-
-        res.status(201).json({ 
-            success: true, 
-            point: point, 
-            message: `Location '${point.name}' created. ID: ${point._id}` 
-        });
-    } catch (error) {
-        // FIX: Mongoose Validation Errors (agar 'name' empty hai)
-        if (error.name === 'ValidationError') {
-            const messages = Object.values(error.errors).map(val => val.message);
-            return res.status(400).json({ message: messages.join(', ') });
-        }
-        
-        // FIX: Unique Index Error (Point Name already exists)
-        if (error.code === 11000) return res.status(400).json({ message: 'Location Name already exists.' });
-        
-        console.error('Point creation error:', error);
-        // Generic 500 error for all other issues
-        res.status(500).json({ message: 'Error creating location point.', details: error.message });
-    }
-});
-// =================================================================================
-
-
-// =================================================================================
-// ------------------- ADMIN/OWNER: GET ALL POINTS -------------------
-// GET /api/points/admin/all
-router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
-    try {
-        const ownerId = req.user.id; 
-        const points = await Point.find({ ownerId }).select('name address'); 
-        res.status(200).json({ success: true, points });
-    } catch (error) {
-        console.error('Fetching points error:', error);
-        res.status(500).json({ message: 'Error fetching location points.' });
-    }
-});
-// =================================================================================
-
-
-// =================================================================================
-// ------------------- ADMIN/OWNER: DELETE POINT -------------------
-// DELETE /api/points/admin/delete/:id
-router.delete('/admin/delete/:id', protect, authorize(['admin']), async (req, res) => {
-    const pointId = req.params.id; 
-    try {
-        // 1. Point को database से delete करें
-        const point = await Point.findByIdAndDelete(pointId);
-
-        if (!point) {
-            return res.status(404).json({ message: 'Location not found.' });
+        if (!username || !password) {
+            return res.status(400).json({ message: 'Please provide username and password.' });
         }
 
-        // 🚨 CRITICAL FIX FOR DEPLOYMENT FAILURE:
-        // Yeh block 'pointId is required' error paida kar raha hai
-        // server startup ke dauraan. Deploy successful hone tak isse comment rakhein.
-        /*
-        // 2. Uss Point ID को सभी Users (Manager/Driver) के 'pointId' और 'managerId' से हटाना (null करना)
-        await User.updateMany(
-            { pointId: pointId },
-            { $set: { pointId: null, managerId: null } }
-        );
-        */
+        const user = await User.findOne({ username });
 
-        res.status(200).json({ message: 'Location deleted successfully.' });
+        // 1. Check if user exists
+        if (!user) {
+            return res.status(401).json({ message: 'Invalid credentials.' });
+        }
+        
+        // 2. Check password
+        // FIX: matchPassword method User.js model mein define hona chahiye
+        if (await user.matchPassword(password)) {
+            // Success: Token generation
+            const token = generateToken(user._id, user.role);
+
+            // Response mein zaroori details bhejte hain
+            res.json({
+                _id: user._id,
+                username: user.username,
+                role: user.role,
+                fullName: user.fullName,
+                contactNumber: user.contactNumber,
+                pointId: user.pointId,
+                managerId: user.managerId,
+                token: token,
+                message: 'Login successful.'
+            });
+        } else {
+            // Password match nahi hua
+            res.status(401).json({ message: 'Invalid credentials.' });
+        }
     } catch (error) {
-        console.error('Point deletion error:', error);
-        res.status(500).json({ message: 'Error deleting location point.' });
+        // Log the error to the console
+        console.error('Login process error:', error); 
+        // FIX: Agar error database se hai, toh 500 bhejte hain
+        res.status(500).json({ message: 'Server error during login process.', details: error.message });
     }
 });
 // =================================================================================
+
+
+// =================================================================================
+// ------------------- PROTECTED: GET CURRENT USER DETAILS -------------------
+// GET /api/users/me
+router.get('/me', protect, async (req, res) => {
+    try {
+        // req.user authMiddleware se aata hai (jismein id aur role hota hai)
+        const user = await User.findById(req.user.id).select('-password'); // Password nahi bhejte
+        
+        if (user) {
+            res.json(user);
+        } else {
+            res.status(404).json({ message: 'User not found.' });
+        }
+    } catch (error) {
+        console.error('Fetch user details error:', error);
+        res.status(500).json({ message: 'Error fetching user details.' });
+    }
+});
+// =================================================================================
+
+// ... (Baaki routes jaise /admin/list, /admin/update, etc. yahan aayenge)
 
 module.exports = router;
