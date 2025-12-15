@@ -7,7 +7,8 @@ const { protect, authorize } = require('../middleware/authMiddleware'); // prote
 // =================================================================================
 // ------------------- ADMIN/OWNER: CREATE POINT (Hotel/Location) -------------------
 // POST /api/points/admin/create
-router.post('/admin/create', protect, authorize(['admin']), async (req, res) => {
+// FIX: authorize(['admin']) ko authorize(['admin', 'owner']) mein badla gaya hai
+router.post('/admin/create', protect, authorize(['admin', 'owner']), async (req, res) => {
     try {
         const { name, address } = req.body; 
         const ownerId = req.user.id; 
@@ -20,15 +21,15 @@ router.post('/admin/create', protect, authorize(['admin']), async (req, res) => 
             message: `Location '${point.name}' created. ID: ${point._id}` 
         });
     } catch (error) {
-        // FIX: Mongoose Validation Errors 
+        // Mongoose Validation Errors 
         if (error.name === 'ValidationError') {
             const messages = Object.values(error.errors).map(val => val.message);
             return res.status(400).json({ message: messages.join(', ') });
         }
-        
-        // FIX: Unique Index Error (Point Name already exists)
+
+        // Unique Index Error (Point Name already exists)
         if (error.code === 11000) return res.status(400).json({ message: 'Location Name already exists.' });
-        
+
         console.error('Point creation error:', error);
         res.status(500).json({ message: 'Error creating location point.', details: error.message });
     }
@@ -39,7 +40,7 @@ router.post('/admin/create', protect, authorize(['admin']), async (req, res) => 
 // =================================================================================
 // ------------------- ADMIN/OWNER: GET ALL POINTS -------------------
 // GET /api/points/admin/all
-router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
+router.get('/admin/all', protect, authorize(['admin', 'owner']), async (req, res) => {
     try {
         const ownerId = req.user.id; 
         const points = await Point.find({ ownerId }).select('name address'); 
@@ -55,7 +56,7 @@ router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
 // =================================================================================
 // ------------------- ADMIN/OWNER: DELETE POINT -------------------
 // DELETE /api/points/admin/delete/:id
-router.delete('/admin/delete/:id', protect, authorize(['admin']), async (req, res) => {
+router.delete('/admin/delete/:id', protect, authorize(['admin', 'owner']), async (req, res) => {
     const pointId = req.params.id; 
     try {
         // 1. Point को database से delete करें
@@ -65,7 +66,6 @@ router.delete('/admin/delete/:id', protect, authorize(['admin']), async (req, re
             return res.status(404).json({ message: 'Location not found.' });
         }
 
-        // ✅ FINAL FIX: Deployment successful hone ke baad, yeh block wapas ON kar diya gaya hai
         // 2. Uss Point ID को सभी Users (Manager/Driver) के 'pointId' और 'managerId' से हटाना (null करना)
         await User.updateMany( 
             { pointId: pointId },
