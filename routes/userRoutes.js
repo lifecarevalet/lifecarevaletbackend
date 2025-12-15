@@ -1,5 +1,5 @@
-const express = require('express');
-const router = express.Router(); // <--- Is line ka syntax sahi hona zaroori hai
+const express = require('require');
+const router = express.Router(); 
 const jwt = require('jsonwebtoken'); 
 const User = require('../models/User'); 
 const { protect, authorize } = require('../middleware/authMiddleware');
@@ -49,13 +49,13 @@ const loginUser = async (req, res) => {
 // ------------------- ADMIN: MANAGER/DRIVER REGISTER FUNCTION -------------------
 const registerUser = async (req, res) => {
     try {
-        // Form ke anusaar fields nikalna (Contact Number aur Role optional/default ho sakte hain)
+        // Form ke anusaar fields nikalna 
         const { username, password, fullName, pointId } = req.body;
         
         // Agar form se nahi aaye, toh inhein req.body se nikalo, varna default value do
         const contactNumber = req.body.contactNumber; 
         const managerId = req.body.managerId; 
-        const role = req.body.role || 'manager'; // Agar role form se nahi aaya, toh 'manager' maan lo
+        const role = req.body.role || 'manager'; 
 
         // 1. Mandatory Fields Check
         if (!username || !password) {
@@ -117,16 +117,34 @@ const registerUser = async (req, res) => {
 // ------------------- PUBLIC ROUTES -------------------
 router.post('/login', loginUser); 
 
-// ------------------- ADMIN/MANAGEMENT ROUTES (3 Paths for Manager Create) -------------------
+// ------------------- ADMIN/MANAGEMENT ROUTES (TESTING URL PATH) -------------------
 
-// 1. POST /api/users/admin/register
+// 🔥 ULTIMATE TEST ROUTE 🔥
+// Yeh dekhega ki kya URL /admin/create/ jaisa kuch toh nahi hai
+router.post('/admin/:path', protect, authorize(['admin']), (req, res, next) => {
+    // URL path ko check karo (jaise 'create' ya 'register')
+    const validPaths = ['create', 'register'];
+    
+    if (validPaths.includes(req.params.path.toLowerCase())) {
+        console.log(`✅ TEST SUCCESS: URL path is correct: /admin/${req.params.path}`);
+        // Agar sahi hai, toh asali registerUser function par aage badho
+        return next();
+    } else {
+        // Agar URL galat hai, toh yeh message aayega, "Could not connect" nahi.
+        return res.status(404).json({ 
+            message: `Error: Invalid URL Path for User Creation. Received path: ${req.params.path}`,
+            detail: 'Kripya frontend code mein API URL check karein.'
+        });
+    }
+}, registerUser); 
+
+
+// 🛑 PURANE ROUTES KO COMMENT KIYA GAYA HAI TAAME TEST ROUTE CHALE
+/*
 router.post('/admin/register', protect, authorize(['admin']), registerUser); 
-
-// 2. POST /api/users/admin/create (Frontend Mismatch Fix 1)
 router.post('/admin/create', protect, authorize(['admin']), registerUser); 
-
-// 3. POST /api/users/register (Frontend Mismatch Fix 2)
 router.post('/register', protect, authorize(['admin']), registerUser); 
+*/
 
 // 4. GET /api/users/admin/all (for dashboard)
 router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
