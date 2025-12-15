@@ -5,10 +5,9 @@ const User = require('../models/User');
 const { protect, authorize } = require('../middleware/authMiddleware'); // protect aur authorize middleware
 
 // =================================================================================
-// ------------------- ADMIN/OWNER: CREATE POINT (Hotel/Location) -------------------
+// ------------------- ADMIN: CREATE POINT (Hotel/Location) -------------------
 // POST /api/points/admin/create
-// FIX: authorize(['admin']) ko authorize(['admin', 'owner']) mein badla gaya hai
-router.post('/admin/create', protect, authorize(['admin', 'owner']), async (req, res) => {
+router.post('/admin/create', protect, authorize(['admin']), async (req, res) => {
     try {
         const { name, address } = req.body; 
         const ownerId = req.user.id; 
@@ -38,9 +37,9 @@ router.post('/admin/create', protect, authorize(['admin', 'owner']), async (req,
 
 
 // =================================================================================
-// ------------------- ADMIN/OWNER: GET ALL POINTS -------------------
+// ------------------- ADMIN: GET ALL POINTS -------------------
 // GET /api/points/admin/all
-router.get('/admin/all', protect, authorize(['admin', 'owner']), async (req, res) => {
+router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
     try {
         const ownerId = req.user.id; 
         const points = await Point.find({ ownerId }).select('name address'); 
@@ -54,9 +53,9 @@ router.get('/admin/all', protect, authorize(['admin', 'owner']), async (req, res
 
 
 // =================================================================================
-// ------------------- ADMIN/OWNER: DELETE POINT -------------------
+// ------------------- ADMIN: DELETE POINT -------------------
 // DELETE /api/points/admin/delete/:id
-router.delete('/admin/delete/:id', protect, authorize(['admin', 'owner']), async (req, res) => {
+router.delete('/admin/delete/:id', protect, authorize(['admin']), async (req, res) => {
     const pointId = req.params.id; 
     try {
         // 1. Point को database से delete करें
