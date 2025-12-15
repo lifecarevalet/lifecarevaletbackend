@@ -1,4 +1,52 @@
-// userRoutes.js file mein sirf is function ko badlein
+const express = require('express');
+const router = express.Router();
+const jwt = require('jsonwebtoken'); 
+const User = require('../models/User'); 
+const { protect, authorize } = require('../middleware/authMiddleware');
+
+// =================================================================================
+// 🛑 HELPER FUNCTION: Token Generation
+const generateToken = (id, role) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("Server configuration error: Missing JWT secret.");
+  }
+  return jwt.sign({ id, role: role.toLowerCase().trim() }, process.env.JWT_SECRET, { 
+    expiresIn: '30d', 
+  });
+};
+// =================================================================================
+
+
+// =================================================================================
+// 🛑 PUBLIC: USER LOGIN LOGIC 
+const loginUser = async (req, res) => {
+    try {
+        const { username, password, role } = req.body; 
+        const user = await User.findOne({ username });
+
+        if (!user || !(await user.matchPassword(password)) || user.role.toLowerCase().trim() !== role.toLowerCase().trim()) { 
+            return res.status(401).json({ message: 'Invalid Credentials (Username/Password/Role).' });
+        }
+
+        const populatedUser = await User.findById(user._id)
+            .select('-password') 
+            .populate('pointId') 
+            .populate('managerId'); 
+
+        res.json({
+            user: populatedUser, 
+            token: generateToken(user._id, user.role), 
+        });
+    } catch (error) {
+        console.error("Critical Login Server Error:", error);
+        res.status(500).json({ message: 'Internal Server Error during login process.' });
+    }
+};
+// =================================================================================
+
+
+// =================================================================================
+// ------------------- ADMIN: MANAGER/DRIVER REGISTER FUNCTION -------------------
 const registerUser = async (req, res) => {
     try {
         const { username, password, role, fullName, contactNumber, pointId, managerId } = req.body;
@@ -25,16 +73,15 @@ const registerUser = async (req, res) => {
             username,
             password,
             role: cleanedRole, 
-            fullName: fullName || '', // Default to empty string if missing
-            contactNumber: contactNumber || '', // Default to empty string if missing
+            fullName: fullName || '', 
+            contactNumber: contactNumber || '', 
         };
         
         // PointId aur ManagerId ko sirf tabhi shamil karein jab woh valid ObjectId ki length ke hon (24 characters)
-        // Taki Mongoose Cast Error (500) se bacha ja sake.
         if (pointId && pointId.length === 24) createData.pointId = pointId; 
         if (managerId && managerId.length === 24) createData.managerId = managerId;
         
-        // 5. User Create (Yeh ab sabse zyada safe hai)
+        // 5. User Create
         const user = await User.create(createData);
 
         const userResponse = await User.findById(user._id).select('-password');
@@ -46,18 +93,58 @@ const registerUser = async (req, res) => {
         });
 
     } catch (error) {
-        // Validation Error (Mongoose's built-in error)
         if (error.name === 'ValidationError') {
              const messages = Object.values(error.errors).map(val => val.message);
              return res.status(400).json({ message: messages.join(', ') });
         }
-        // Duplicate Key Error (Username ka unique index)
         if (error.code === 11000) {
             return res.status(400).json({ message: 'Duplicate key error: User with this username already exists.' });
         }
         
-        // Final fallback 500
         console.error('User registration error:', error);
         res.status(500).json({ message: 'Internal Server Error: Could not register user.' });
     }
 };
+// =================================================================================
+
+
+// ------------------- PUBLIC ROUTES -------------------
+router.post('/login', loginUser); 
+
+// ------------------- ADMIN/MANAGEMENT ROUTES -------------------
+
+// 1. POST /api/users/admin/register
+router.post('/admin/register', protect, authorize(['admin']), registerUser); 
+
+// 2. POST /api/users/admin/create (Frontend Mismatch Fix 1)
+router.post('/admin/create', protect, authorize(['admin']), registerUser); 
+
+// 3. POST /api/users/register (Frontend Mismatch Fix 2)
+router.post('/register', protect, authorize(['admin']), registerUser); 
+
+// 4. GET /api/users/admin/all (for dashboard)
+router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
+    try {
+        const users = await User.find().select('_id username role fullName contactNumber pointId managerId'); 
+        res.status(200).json({ success: true, users });
+    } catch (error) {
+        console.error('Fetching all users error:', error);
+        res.status(500).json({ message: 'Error fetching all users.', details: error.message });
+    }
+});
+
+// 5. GET /api/users/admin/users (Filtered list)
+router.get('/admin/users', protect, authorize(['admin', 'manager']), async (req, res) => { 
+    try {
+        const users = await User.find({ role: { $ne: 'owner' } }) 
+            .select('-password')
+            .populate('managerId', 'fullName username') 
+            .populate('pointId', 'name address'); 
+
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching users.' });
+    }
+});
+
+module.exports = router;
