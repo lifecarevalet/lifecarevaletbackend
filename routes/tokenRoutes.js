@@ -1,40 +1,49 @@
 const express = require('express');
 const router = express.Router(); 
 const Token = require('../models/Token'); 
-const User = require('../models/User'); // User model ko yahan import karna zaroori hai
+const User = require('../models/User'); // User model import zaroori hai
 const { protect, authorize } = require('../middleware/authMiddleware'); 
 
 // =================================================================================
 // ------------------- TOKEN/CAR IN FUNCTION (Token Creation) -------------------
 const createToken = async (req, res) => {
     try {
+        // Form se aaye hue fields
         const { carNumber, customerName, carModel, pointId, driverId, managerId, customerContact } = req.body;
         
-        // 1. Mandatory Fields Check 
-        if (!carNumber || !pointId || !driverId) { 
+        // 1. 🔥 FIX: Auto-Assign Location (Point ID)
+        let finalPointId = pointId; // Pehle form se aayi hui value use karo
+        
+        // Agar logged-in user Manager hai, aur uske paas pointId hai, toh usi ko use karo.
+        // Isse "Location Mandatory" error theek ho jayega agar form se khaali value aayi hai.
+        if (req.user.role === 'manager' && req.user.pointId) {
+            finalPointId = req.user.pointId;
+        }
+
+        // 2. Mandatory Fields Check (Ab finalPointId ko check kar rahe hain)
+        if (!carNumber || !finalPointId || !driverId) { 
             return res.status(400).json({ message: 'Car Number, Location, and Driver are mandatory fields for Car In.' });
         }
         
-        // 2. 🔥 FIX: Driver ID Validation aur Role Check (New Logic)
+        // 3. Driver ID Validation aur Role Check
         const driver = await User.findById(driverId);
         
         if (!driver) {
             return res.status(404).json({ message: 'Selected Driver not found.' });
         }
         
-        // Agar select kiya gaya ID 'driver' role ka nahi hai, toh rok do
+        // Agar select kiya gaya ID 'driver' role ka nahi hai
         if (driver.role.toLowerCase() !== 'driver') {
             return res.status(400).json({ message: `User '${driver.fullName}' is not a Driver. Cannot assign.` });
         }
         
-        // 3. Data Construction
+        // 4. Data Construction (Manager ID Logic)
         const tokenData = {
             carNumber: carNumber.toUpperCase().trim(),
-            pointId, 
-            driverId, // Validated driver ID
-            // Agar Manager token bana raha hai, toh woh khud 'assignedManager' hoga.
-            // Agar Driver token bana raha hai, toh woh apne Manager ko assign kar dega.
-            managerId: managerId || (req.user.role === 'manager' ? req.user.id : driver.managerId), 
+            pointId: finalPointId, // Auto-assigned Point ID
+            driverId, 
+            // Manager ID: Agar logged-in user Manager hai toh khud ka ID, varna driver ka manager ID
+            managerId: req.user.role === 'manager' ? req.user.id : driver.managerId, 
             customerName: customerName || 'N/A', 
             customerContact: customerContact || '',
             carModel: carModel || '',
@@ -42,10 +51,10 @@ const createToken = async (req, res) => {
             status: 'Parked', 
         };
         
-        // 4. Token Create
+        // 5. Token Create
         const newToken = await Token.create(tokenData);
 
-        // 5. Response mein populated data bhejo
+        // 6. Response mein populated data bhejo
         const populatedToken = await Token.findById(newToken._id)
             .populate('pointId', 'name')
             .populate('driverId', 'fullName username')
@@ -59,7 +68,7 @@ const createToken = async (req, res) => {
         });
 
     } catch (error) {
-        // Validation aur Cast Error Handling
+        // Error Handling
         if (error.name === 'ValidationError') {
              const messages = Object.values(error.errors).map(val => val.message);
              return res.status(400).json({ message: `Validation Error: ${messages.join(', ')}` });
@@ -77,8 +86,7 @@ const createToken = async (req, res) => {
 
 // ------------------- TOKEN ROUTES -------------------
 
-// 1. POST /api/tokens/in (Car In / Token Create)
-// 🔥 FIX: authorize(['manager', 'driver']) - Manager aur Driver dono ko permission
+// 1. POST /api/tokens/in (Car In / Token Create) - Manager aur Driver dono ko permission
 router.post('/in', protect, authorize(['manager', 'driver']), createToken);
 
 
@@ -87,7 +95,6 @@ router.get('/admin/all', protect, authorize(['admin', 'manager']), async (req, r
     try {
         let query = {};
 
-        // Agar user Manager hai, toh sirf uske point ke tokens dekhenge
         if (req.user.role === 'manager' && req.user.pointId) {
             query.pointId = req.user.pointId;
         }
@@ -103,9 +110,5 @@ router.get('/admin/all', protect, authorize(['admin', 'manager']), async (req, r
         res.status(500).json({ message: 'Error fetching tokens data.', details: error.message });
     }
 });
-
-
-// ... (Optional: Out route aur doosre routes yahan aa sakte hain)
-
 
 module.exports = router;
