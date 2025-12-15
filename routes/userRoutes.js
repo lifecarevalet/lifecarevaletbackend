@@ -1,91 +1,87 @@
 const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken'); 
 const User = require('../models/User');
-const jwt = require('jsonwebtoken'); // Assuming JWT is used for token generation
 const { protect, authorize } = require('../middleware/authMiddleware');
 
-// FIX: Agar aapne jwt install nahi kiya hai toh: npm install jsonwebtoken
-
-// =================================================================================
-// --- HELPER FUNCTION: Token Generation (Agar aapka token kahi aur generate nahi ho raha) ---
-const generateToken = (id, role) => {
-    return jwt.sign({ id, role }, process.env.JWT_SECRET, {
-        expiresIn: '1d', // Token valid for 1 day
-    });
+// 🛑 HELPER FUNCTION: Token Generation
+const generateToken = (id) => {
+  if (!process.env.JWT_SECRET) {
+    console.error("JWT_SECRET is not defined in the environment variables!");
+    throw new Error("Server configuration error: Missing JWT secret.");
+  }
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: '30d', 
+  });
 };
-// =================================================================================
 
-
-// =================================================================================
-// ------------------- PUBLIC: USER LOGIN -------------------
-// POST /api/users/login
-router.post('/login', async (req, res) => {
+// 🛑 LOGIN LOGIC
+const loginUser = async (req, res) => {
     try {
-        const { username, password } = req.body;
-
-        if (!username || !password) {
-            return res.status(400).json({ message: 'Please provide username and password.' });
-        }
+        const { username, password, role } = req.body;
 
         const user = await User.findOne({ username });
 
-        // 1. Check if user exists
-        if (!user) {
-            return res.status(401).json({ message: 'Invalid credentials.' });
+        // Invalid Credentials check
+        if (!user || !(await user.matchPassword(password))) { 
+            return res.status(401).json({ message: 'Invalid Credentials (Username/Password).' });
         }
-        
-        // 2. Check password
-        // FIX: matchPassword method User.js model mein define hona chahiye
-        if (await user.matchPassword(password)) {
-            // Success: Token generation
-            const token = generateToken(user._id, user.role);
 
-            // Response mein zaroori details bhejte hain
-            res.json({
-                _id: user._id,
-                username: user.username,
-                role: user.role,
-                fullName: user.fullName,
-                contactNumber: user.contactNumber,
-                pointId: user.pointId,
-                managerId: user.managerId,
-                token: token,
-                message: 'Login successful.'
-            });
-        } else {
-            // Password match nahi hua
-            res.status(401).json({ message: 'Invalid credentials.' });
+        // Role mismatch check
+        if (user.role !== role) {
+            return res.status(401).json({ message: `Role mismatch. Account is registered as ${user.role}.` });
         }
+
+        // Success
+        const populatedUser = await User.findById(user._id)
+            .select('-password') 
+            .populate('pointId', 'name address') 
+            .populate('managerId', 'fullName username'); 
+
+        // Final response
+        res.json({
+            user: populatedUser, 
+            token: generateToken(user._id), 
+        });
     } catch (error) {
-        // Log the error to the console
-        console.error('Login process error:', error); 
-        // FIX: Agar error database se hai, toh 500 bhejte hain
-        res.status(500).json({ message: 'Server error during login process.', details: error.message });
+        console.error("Critical Login Server Error:", error);
+        res.status(500).json({ message: 'Internal Server Error during login process.' });
     }
-});
-// =================================================================================
+};
 
+// ------------------- PUBLIC ROUTES -------------------
+router.post('/login', loginUser); 
 
-// =================================================================================
-// ------------------- PROTECTED: GET CURRENT USER DETAILS -------------------
-// GET /api/users/me
-router.get('/me', protect, async (req, res) => {
+// ------------------- ADMIN/MANAGEMENT ROUTES -------------------
+
+// 1. Owner/Admin: Sabhi users ki list (Dashboard ke liye)
+// GET /api/users/admin/all (Yeh Missing Route tha)
+router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
     try {
-        // req.user authMiddleware se aata hai (jismein id aur role hota hai)
-        const user = await User.findById(req.user.id).select('-password'); // Password nahi bhejte
-        
-        if (user) {
-            res.json(user);
-        } else {
-            res.status(404).json({ message: 'User not found.' });
-        }
+        const users = await User.find().select('_id username role fullName contactNumber pointId managerId'); 
+        res.status(200).json({ success: true, users });
     } catch (error) {
-        console.error('Fetch user details error:', error);
-        res.status(500).json({ message: 'Error fetching user details.' });
+        console.error('Fetching all users error:', error);
+        res.status(500).json({ message: 'Error fetching all users.', details: error.message });
     }
 });
-// =================================================================================
 
-// ... (Baaki routes jaise /admin/list, /admin/update, etc. yahan aayenge)
+
+// 2. Owner/Manager: Filtered users ki list
+// GET /api/users/admin/users 
+router.get('/admin/users', protect, authorize(['admin', 'manager']), async (req, res) => { 
+    try {
+        const users = await User.find({ role: { $ne: 'owner' } })
+            .select('-password')
+            .populate('managerId', 'fullName username') 
+            .populate('pointId', 'name address'); 
+
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching users.' });
+    }
+});
+
+// ... (Baaki sab userRoutes jaise update/delete yahan aayenge)
 
 module.exports = router;
