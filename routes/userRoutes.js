@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router(); 
 const jwt = require('jsonwebtoken'); 
-// 🔥 ZAROORI CHECK: Confirm karein ki yeh path aapke User model tak sahi hai
+// 🔥 PATH CHECK: Kripya is path ko confirm karein. Agar aapka 'User' model kisi aur folder mein hai, toh path badlein.
 const User = require('../models/User'); 
 const { protect, authorize } = require('../middleware/authMiddleware');
 
@@ -19,7 +19,7 @@ const generateToken = (id, role) => {
 
 
 // =================================================================================
-// 🛑 PUBLIC: USER LOGIN LOGIC (FIXED: Safe Population)
+// 🛑 PUBLIC: USER LOGIN LOGIC (FIXED: Populating pointId and managerId)
 const loginUser = async (req, res) => {
     try {
         const { username, password, role } = req.body; 
@@ -29,6 +29,7 @@ const loginUser = async (req, res) => {
             return res.status(401).json({ message: 'Invalid Credentials (Username/Password/Role).' });
         }
 
+        // Populate required fields for the logged-in user
         let query = User.findById(user._id).select('-password');
         
         if (user.pointId) {
@@ -116,7 +117,7 @@ router.post('/login', loginUser);
 
 // ------------------- ADMIN/MANAGEMENT ROUTES -------------------
 
-// 1. POST /api/users/admin/:path (Manager Create FIX - handles multiple paths)
+// 1. POST /api/users/admin/:path (Manager Create)
 router.post('/admin/:path', protect, authorize(['admin']), (req, res, next) => {
     const validPaths = ['create', 'register', 'create-user']; 
     
@@ -130,7 +131,7 @@ router.post('/admin/:path', protect, authorize(['admin']), (req, res, next) => {
 }, registerUser); 
 
 
-// 2. 🔥 FIX: GET /api/users/admin/all (Comprehensive All Users List)
+// 2. GET /api/users/admin/all (All Users List for Admin)
 router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
     try {
         const users = await User.find()
@@ -138,17 +139,16 @@ router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
             .populate('pointId', 'name address') 
             .populate('managerId', 'fullName username'); 
             
-        res.status(200).json({ success: true, users });
+        res.status(200).json(users); 
     } catch (error) {
         console.error('Fetching all users error:', error);
         res.status(500).json({ message: 'Error fetching all users.', details: error.message });
     }
 });
 
-// 3. 🔥 FIX: GET /api/users/admin/users (Filtered List - for Admin Dashboard)
+// 3. GET /api/users/admin/users (Filtered List - for Admin Dashboard display)
 router.get('/admin/users', protect, authorize(['admin', 'manager']), async (req, res) => { 
     try {
-        // Exclude 'owner' role if it exists, list managers and drivers
         const users = await User.find({ role: { $ne: 'owner' } }) 
             .select('-password')
             .populate('managerId', 'fullName username') 
@@ -161,11 +161,12 @@ router.get('/admin/users', protect, authorize(['admin', 'manager']), async (req,
 });
 
 
-// 4. GET /api/users/drivers (Driver List Fix for Token Form)
+// 4. GET /api/users/drivers (Driver List for Frontend Token Form)
 router.get('/drivers', protect, authorize(['admin', 'manager']), async (req, res) => {
     try {
         let query = { role: 'driver' }; 
 
+        // Manager scope: Sirf apne point ke drivers dekhega
         if (req.user.role === 'manager' && req.user.pointId) {
             query.pointId = req.user.pointId;
         }
@@ -180,7 +181,5 @@ router.get('/drivers', protect, authorize(['admin', 'manager']), async (req, res
         res.status(500).json({ message: 'Error fetching drivers list.' });
     }
 });
-
-// ... (Other routes like GET /:id, PUT /:id, DELETE /:id here)
 
 module.exports = router;
