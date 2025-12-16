@@ -18,7 +18,7 @@ const generateToken = (id, role) => {
 
 
 // =================================================================================
-// 🛑 PUBLIC: USER LOGIN LOGIC 
+// 🛑 PUBLIC: USER LOGIN LOGIC (FIXED: Safe Population)
 const loginUser = async (req, res) => {
     try {
         const { username, password, role } = req.body; 
@@ -28,15 +28,23 @@ const loginUser = async (req, res) => {
             return res.status(401).json({ message: 'Invalid Credentials (Username/Password/Role).' });
         }
 
-        const populatedUser = await User.findById(user._id)
-            .select('-password') 
-            .populate('pointId') 
-            .populate('managerId'); 
+        // FIX: Populate sirf tabhi karo jab field mein value ho (Mongoose Cast Error se bachne ke liye)
+        let query = User.findById(user._id).select('-password');
+        
+        if (user.pointId) {
+            query = query.populate('pointId');
+        }
+        if (user.managerId) {
+            query = query.populate('managerId');
+        }
+
+        const populatedUser = await query.exec(); 
 
         res.json({
             user: populatedUser, 
             token: generateToken(user._id, user.role), 
         });
+
     } catch (error) {
         console.error("Critical Login Server Error:", error);
         res.status(500).json({ message: 'Internal Server Error during login process.' });
@@ -50,7 +58,6 @@ const loginUser = async (req, res) => {
 const registerUser = async (req, res) => {
     try {
         const { username, password, fullName, pointId } = req.body;
-        
         const contactNumber = req.body.contactNumber; 
         const managerId = req.body.managerId; 
         const role = req.body.role || 'manager'; 
@@ -109,19 +116,16 @@ const registerUser = async (req, res) => {
 // ------------------- PUBLIC ROUTES -------------------
 router.post('/login', loginUser); 
 
-// ------------------- ADMIN/MANAGEMENT ROUTES (URL PATH FIX: create-user) -------------------
+// ------------------- ADMIN/MANAGEMENT ROUTES -------------------
 
-// 🔥 FINAL CORRECT ROUTE: Yeh ab 'create-user' URL ko sahi se handle karega
+// 1. POST /api/users/admin/:path (Manager Create FIX)
+// Yeh /create, /register, aur /create-user teeno ko handle karega
 router.post('/admin/:path', protect, authorize(['admin']), (req, res, next) => {
-    // Valid paths mein 'create-user' shamil hai
     const validPaths = ['create', 'register', 'create-user']; 
     
     if (validPaths.includes(req.params.path.toLowerCase())) {
         console.log(`✅ URL Match: /admin/${req.params.path}`);
-        return next(); // registerUser par jaao
-    } else if (req.params.path.toLowerCase() === 'all' || req.params.path.toLowerCase() === 'users') {
-        // Yeh GET routes ho sakte hain, isliye 404/500 se bachne ke liye unhe chhod do
-        return next();
+        return next(); 
     } else {
         // Agar koi aur galat URL hai toh 404 error do
         return res.status(404).json({ 
@@ -132,7 +136,7 @@ router.post('/admin/:path', protect, authorize(['admin']), (req, res, next) => {
 }, registerUser); 
 
 
-// 4. GET /api/users/admin/all (for dashboard)
+// 2. GET /api/users/admin/all (for dashboard)
 router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
     try {
         const users = await User.find().select('_id username role fullName contactNumber pointId managerId'); 
@@ -143,7 +147,7 @@ router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
     }
 });
 
-// 5. GET /api/users/admin/users (Filtered list)
+// 3. GET /api/users/admin/users (Filtered list)
 router.get('/admin/users', protect, authorize(['admin', 'manager']), async (req, res) => { 
     try {
         const users = await User.find({ role: { $ne: 'owner' } }) 
@@ -154,6 +158,27 @@ router.get('/admin/users', protect, authorize(['admin', 'manager']), async (req,
         res.json(users);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching users.' });
+    }
+});
+
+// 4. 🔥 NEW: GET /api/users/drivers (Driver List Fix for Token Form)
+router.get('/drivers', protect, authorize(['admin', 'manager']), async (req, res) => {
+    try {
+        let query = { role: 'driver' }; 
+
+        // Agar user Manager hai, toh sirf uske point ke drivers
+        if (req.user.role === 'manager' && req.user.pointId) {
+            query.pointId = req.user.pointId;
+        }
+
+        const drivers = await User.find(query)
+            .select('_id fullName username pointId managerId')
+            .populate('pointId', 'name');
+
+        res.status(200).json(drivers);
+    } catch (error) {
+        console.error('Fetching drivers error:', error);
+        res.status(500).json({ message: 'Error fetching drivers list.' });
     }
 });
 
