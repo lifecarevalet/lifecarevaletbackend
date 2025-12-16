@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router(); 
 const jwt = require('jsonwebtoken'); 
+// 🔥 ZAROORI CHECK: Confirm karein ki yeh path aapke User model tak sahi hai
 const User = require('../models/User'); 
 const { protect, authorize } = require('../middleware/authMiddleware');
 
@@ -28,7 +29,6 @@ const loginUser = async (req, res) => {
             return res.status(401).json({ message: 'Invalid Credentials (Username/Password/Role).' });
         }
 
-        // FIX: Populate sirf tabhi karo jab field mein value ho (Mongoose Cast Error se bachne ke liye)
         let query = User.findById(user._id).select('-password');
         
         if (user.pointId) {
@@ -53,7 +53,6 @@ const loginUser = async (req, res) => {
 // =================================================================================
 
 
-// =================================================================================
 // ------------------- ADMIN: MANAGER/DRIVER REGISTER FUNCTION -------------------
 const registerUser = async (req, res) => {
     try {
@@ -94,7 +93,7 @@ const registerUser = async (req, res) => {
         res.status(201).json({ 
             success: true, 
             user: userResponse, 
-            message: `${role} '${fullName || username}' created successfully.` 
+            message: `${role} created successfully.` 
         });
 
     } catch (error) {
@@ -110,7 +109,6 @@ const registerUser = async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error: Could not register user.' });
     }
 };
-// =================================================================================
 
 
 // ------------------- PUBLIC ROUTES -------------------
@@ -118,28 +116,28 @@ router.post('/login', loginUser);
 
 // ------------------- ADMIN/MANAGEMENT ROUTES -------------------
 
-// 1. POST /api/users/admin/:path (Manager Create FIX)
-// Yeh /create, /register, aur /create-user teeno ko handle karega
+// 1. POST /api/users/admin/:path (Manager Create FIX - handles multiple paths)
 router.post('/admin/:path', protect, authorize(['admin']), (req, res, next) => {
     const validPaths = ['create', 'register', 'create-user']; 
     
     if (validPaths.includes(req.params.path.toLowerCase())) {
-        console.log(`✅ URL Match: /admin/${req.params.path}`);
         return next(); 
     } else {
-        // Agar koi aur galat URL hai toh 404 error do
         return res.status(404).json({ 
             message: `Error: Invalid URL Path for User Creation. Received path: ${req.params.path}`,
-            detail: 'Kripya frontend code mein API URL check karein.'
         });
     }
 }, registerUser); 
 
 
-// 2. GET /api/users/admin/all (for dashboard)
+// 2. 🔥 FIX: GET /api/users/admin/all (Comprehensive All Users List)
 router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
     try {
-        const users = await User.find().select('_id username role fullName contactNumber pointId managerId'); 
+        const users = await User.find()
+            .select('_id username role fullName contactNumber pointId managerId')
+            .populate('pointId', 'name address') 
+            .populate('managerId', 'fullName username'); 
+            
         res.status(200).json({ success: true, users });
     } catch (error) {
         console.error('Fetching all users error:', error);
@@ -147,9 +145,10 @@ router.get('/admin/all', protect, authorize(['admin']), async (req, res) => {
     }
 });
 
-// 3. GET /api/users/admin/users (Filtered list)
+// 3. 🔥 FIX: GET /api/users/admin/users (Filtered List - for Admin Dashboard)
 router.get('/admin/users', protect, authorize(['admin', 'manager']), async (req, res) => { 
     try {
+        // Exclude 'owner' role if it exists, list managers and drivers
         const users = await User.find({ role: { $ne: 'owner' } }) 
             .select('-password')
             .populate('managerId', 'fullName username') 
@@ -161,12 +160,12 @@ router.get('/admin/users', protect, authorize(['admin', 'manager']), async (req,
     }
 });
 
-// 4. 🔥 NEW: GET /api/users/drivers (Driver List Fix for Token Form)
+
+// 4. GET /api/users/drivers (Driver List Fix for Token Form)
 router.get('/drivers', protect, authorize(['admin', 'manager']), async (req, res) => {
     try {
         let query = { role: 'driver' }; 
 
-        // Agar user Manager hai, toh sirf uske point ke drivers
         if (req.user.role === 'manager' && req.user.pointId) {
             query.pointId = req.user.pointId;
         }
@@ -181,5 +180,7 @@ router.get('/drivers', protect, authorize(['admin', 'manager']), async (req, res
         res.status(500).json({ message: 'Error fetching drivers list.' });
     }
 });
+
+// ... (Other routes like GET /:id, PUT /:id, DELETE /:id here)
 
 module.exports = router;
