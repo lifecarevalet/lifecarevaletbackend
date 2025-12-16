@@ -1,24 +1,27 @@
 const express = require('express');
 const router = express.Router(); 
-// Path check: Confirm karein ki yeh path sahi hai
+// 🔥 ZAROORI CHECK: Confirm karein ki yeh path aapke Model files tak sahi hai
 const Token = require('../models/Token'); 
 const User = require('../models/User'); 
 const { protect, authorize } = require('../middleware/authMiddleware'); 
 
+// =================================================================================
 // ------------------- TOKEN/CAR IN FUNCTION (Token Creation) -------------------
 const createToken = async (req, res) => {
     try {
         const { carNumber, customerName, carModel, pointId, driverId, managerId, customerContact } = req.body;
         
-        // 1. Auto-Assign Location (Point ID)
+        // 1. 🔥 Manager/Driver ki Location Auto-Assign
         let finalPointId = pointId; 
         
-        if (req.user.role === 'manager' && req.user.pointId) {
+        // Agar logged-in user Manager/Driver hai, toh uska pointId use karo
+        if ((req.user.role === 'manager' || req.user.role === 'driver') && req.user.pointId) {
             finalPointId = req.user.pointId;
         }
 
         // 2. Mandatory Fields Check
         if (!carNumber || !finalPointId || !driverId) { 
+            // Ab yeh error sirf tab aayega jab frontend se driverId na mile (jo ki HTML fix se theek ho gaya hai)
             return res.status(400).json({ message: 'Car Number, Location, and Driver are mandatory fields for Car In.' });
         }
         
@@ -36,8 +39,9 @@ const createToken = async (req, res) => {
         // 4. Data Construction
         const tokenData = {
             carNumber: carNumber.toUpperCase().trim(),
-            pointId: finalPointId, 
+            pointId: finalPointId, // Auto-assigned Point ID
             driverId, 
+            // Manager ID: Agar logged-in user Manager hai toh khud ka ID, varna driver ka manager ID
             managerId: req.user.role === 'manager' ? req.user.id : driver.managerId, 
             customerName: customerName || 'N/A', 
             customerContact: customerContact || '',
@@ -72,25 +76,36 @@ const createToken = async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error: Could not create token.', details: error.message });
     }
 };
+// =================================================================================
 
 
 // ------------------- TOKEN ROUTES -------------------
 
-// 1. POST /api/tokens/in (Car In / Token Create)
+// 1. POST /api/tokens/in (Car In / Token Create) - Manager aur Driver dono ko permission
 router.post('/in', protect, authorize(['manager', 'driver']), createToken);
 
+
 // 2. GET /api/tokens/admin/all (Token List)
-router.get('/admin/all', protect, authorize(['admin', 'manager']), async (req, res) => {
+router.get('/admin/all', protect, authorize(['admin', 'manager', 'driver']), async (req, res) => {
     try {
         let query = {};
 
-        if (req.user.role === 'manager' && req.user.pointId) {
+        // Manager/Driver scope: Sirf apne point ke tokens dikhenge
+        if ((req.user.role === 'manager' || req.user.role === 'driver') && req.user.pointId) {
             query.pointId = req.user.pointId;
         }
+        
+        // Driver specific: Driver sirf woh tokens dekhe jahan woh assigned hai
+        if (req.user.role === 'driver') {
+            query.driverId = req.user.id;
+        }
+        
+        // Note: Agar Manager hai, toh woh saare tokens dekhega jismein uska pointId match karta hai.
 
         const tokens = await Token.find(query)
             .populate('pointId', 'name address') 
-            .populate('assignedManager', 'fullName username') 
+            .populate('driverId', 'fullName username') 
+            .populate('managerId', 'fullName username') 
             .sort({ tokenNumber: 1 });
 
         res.status(200).json({ success: true, tokens });
@@ -107,6 +122,11 @@ router.post('/out/:id', protect, authorize(['manager', 'driver']), async (req, r
 
         if (!token) {
             return res.status(404).json({ message: 'Token not found.' });
+        }
+
+        // Status check
+        if (token.status === 'Completed') {
+            return res.status(400).json({ message: 'Car is already marked as OUT.' });
         }
 
         token.outTime = new Date();
